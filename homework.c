@@ -50,7 +50,6 @@ int bit_test(unsigned char *map, int i)
 
 /* Global Variables
  */
-#define BLOCK_SIZE = 4096;
 
 
 /* init - this is called once by the FUSE framework at startup. Ignore
@@ -62,7 +61,7 @@ int bit_test(unsigned char *map, int i)
 void* fs_init(struct fuse_conn_info *conn)
 {
     // allocate memory for superblock
-    fsx_superblock *super_block = malloc(sizeof(fsx_superblock));
+    struct fs_super *super_block = malloc(sizeof(struct fs_super));
 
     // READ SUPERBLOCK
     block_read(super_block, 0, 1);
@@ -75,7 +74,7 @@ void* fs_init(struct fuse_conn_info *conn)
     }
 
     // calculate the number of blocks in the disk
-    int num_blocks = super_block->disk_size / BLOCK_SIZE;
+    int num_blocks = super_block->disk_size / FS_BLOCK_SIZE;
     // 8 becuase there are 8 bits in a byte
     int bitmap_size = num_blocks / 8;
 
@@ -86,7 +85,7 @@ void* fs_init(struct fuse_conn_info *conn)
     block_read(block_bitmap, 1, 1);
 
     // allocate memory for root directory inode
-    fs_inode *root_inode = malloc(sizeof(fs_inode));
+    struct fs_inode *root_inode = malloc(sizeof(struct fs_inode));
 
     // READ ROOT DIR INODE
     block_read(root_inode, 2, 1);
@@ -94,7 +93,7 @@ void* fs_init(struct fuse_conn_info *conn)
     int data_block_start = 3;
     int data_block_end = 5; // how many data blocks are there???
 
-    char *data_block = malloc(BLOCK_SIZE);
+    char *data_block = malloc(FS_BLOCK_SIZE);
 
     for (int i = 0; i < data_block_end; i++) {
         int data_block_location = data_block_start + i;
