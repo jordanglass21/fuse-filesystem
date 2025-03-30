@@ -48,6 +48,10 @@ int bit_test(unsigned char *map, int i)
     return map[i/8] & (1 << (i%8));
 }
 
+/* Global Variables
+ */
+#define BLOCK_SIZE = 4096;
+
 
 /* init - this is called once by the FUSE framework at startup. Ignore
  * the 'conn' argument.
@@ -57,8 +61,75 @@ int bit_test(unsigned char *map, int i)
  */
 void* fs_init(struct fuse_conn_info *conn)
 {
-    /* your code here */
-    return NULL;
+    // allocate memory for superblock
+    fsx_superblock *super_block = malloc(sizeof(fsx_superblock));
+
+    // READ SUPERBLOCK
+    block_read(super_block, 0, 1);
+
+    // validate the magic number (5600)
+    if (super_block->magic != 0x30303635) {
+        printf("Superblock magic number invalid");
+        free(super_block);
+        return NULL;
+    }
+
+    // calculate the number of blocks in the disk
+    int num_blocks = super_block->disk_size / BLOCK_SIZE;
+    // 8 becuase there are 8 bits in a byte
+    int bitmap_size = num_blocks / 8;
+
+    // allocate memory for the block bitmap
+    unsigned char *block_bitmap = malloc(bitmap_size);
+
+    // READ BITMAP
+    block_read(block_bitmap, 1, 1);
+
+    // allocate memory for root directory inode
+    fs_inode *root_inode = malloc(sizeof(fs_inode));
+
+    // READ ROOT DIR INODE
+    block_read(root_inode, 2, 1);
+
+    int data_block_start = 3;
+    int data_block_end = 5; // how many data blocks are there???
+
+    char *data_block = malloc(BLOCK_SIZE);
+
+    for (int i = 0; i < data_block_end; i++) {
+        int data_block_location = data_block_start + i;
+        // READ DATA
+        block_read(data_block, data_block_location, 1); 
+
+        // Print the first few bytes of each data block to verify
+        printf("Data Block %d (First 16 Bytes):\n", data_block_location);
+        for (int j = 0; j < 16; j++) {
+            printf("%02X ", (unsigned char)data_block[j]);
+        }
+        printf("\n");
+    }
+
+
+    // prints to validate
+    printf("Superblock details:\n");
+    printf("Magic number: 0x%X\n", super_block->magic);
+    printf("Disk size: %u\n", super_block->disk_size);
+
+    printf("Block Bitmap: ");
+    for (int i = 0; i < 2; i++) { // Print first 16 bits (2 bytes)
+        printf("%02X ", block_bitmap[i]);
+    }
+    printf("\n");
+
+    printf("Root Inode details:\n");
+    printf("UID: %d\n", root_inode->uid);
+    printf("GID: %d\n", root_inode->gid);
+    printf("Mode: %d\n", root_inode->mode);
+    printf("Creation time: %u\n", root_inode->ctime);
+    printf("Modification time: %u\n", root_inode->mtime);
+    printf("Size: %d\n", root_inode->size);
+
+    return super_block;
 }
 
 /* Note on path translation errors:
