@@ -49,10 +49,78 @@ int bit_test(unsigned char *map, int i)
     return map[i/8] & (1 << (i%8));
 }
 
-/* Global Variables */
+/* Global Variables and other definitions */
 
+#define MAX_PATH_LEN 10
+#define MAX_NAME_LEN 27
 
+struct fs_super *super_block;
 
+unsigned char *block_bitmap;
+
+struct fs_inode *inodes;
+
+/* Helper functions */
+// Create function that reads the root dir
+// pass in until valid == 0 and name empty
+/*func:
+    read inode -> global inode map for reading in???
+    do mode check
+    if mode == dir:
+        read dir
+        recursively call func passing in inode
+*/
+void process_init_read_in(struct fs_dirent * dir) {
+    struct fs_dirent *entry = NULL;
+    for(int i = 0; i < 128; i++){
+        entry = dir + i;
+        if(entry->valid){
+            printf("i: %d\n", i);
+            printf("valid: %d\n", entry->valid);
+            printf("inode #: %d\n", entry->inode);
+            printf("name: %s\n", entry->name);
+            
+            struct fs_inode *n_inode = inodes+(entry->inode);
+
+            block_read(n_inode, entry->inode, 1);
+
+            if(S_ISDIR(n_inode->mode)) {
+                struct fs_dirent *n_dir = malloc(4096);
+                block_read(n_dir, *(n_inode->ptrs), 1);
+                process_init_read_in(n_dir);
+            }
+        }
+    }
+}
+
+int parse(char *path, char **argv) {
+    int i;
+    for (i = 0; i < MAX_PATH_LEN; i++) {
+        if ((argv[i] = strtok(path, "/")) == NULL)
+            break;
+        if (strlen(argv[i]) > MAX_NAME_LEN)
+            argv[i][MAX_NAME_LEN] = 0; 
+        path = NULL;
+    }
+    return i;
+}
+
+int translate(int pathc, char **pathv) {
+    int inum = 2;
+    struct fs_dirent *dir = malloc(4096);
+    for(int i = 0; i < pathc; i++) {
+        if(!S_ISDIR((inodes+inum)->mode)) {
+            return -ENOTDIR;
+        }
+        block_read(dir, *((inodes+inum)->ptrs), 1);
+        for(int j = 0; j < 128; j++) {
+            if(strcmp((dir+j)->name, *(pathv+i)) == 0) {
+                return (dir+j)->inode;
+            }
+        }
+    }
+    return -ENOENT;
+}
 
 /* init - this is called once by the FUSE framework at startup. Ignore
  * the 'conn' argument.
@@ -63,7 +131,7 @@ int bit_test(unsigned char *map, int i)
 void* fs_init(struct fuse_conn_info *conn)
 {
     // allocate memory for superblock
-    struct fs_super *super_block = malloc(sizeof(struct fs_super));
+    super_block = malloc(sizeof(struct fs_super));
 
     // READ SUPERBLOCK
     block_read(super_block, 0, 1);
@@ -75,22 +143,16 @@ void* fs_init(struct fuse_conn_info *conn)
         return NULL;
     }
 
-    // calculate the number of blocks in the disk
-    int num_blocks = super_block->disk_size / FS_BLOCK_SIZE;
-    // 8 becuase there are 8 bits in a byte
-    int bitmap_size = num_blocks / 8;
-
     // allocate memory for the block bitmap
-    unsigned char *block_bitmap = malloc(bitmap_size);
+    block_bitmap = malloc(4096);
 
     // READ BITMAP
     block_read(block_bitmap, 1, 1);
 
-    // allocate memory for root directory inode
-    struct fs_inode *root_inode = malloc(sizeof(struct fs_inode));
+    inodes = malloc(super_block->disk_size * sizeof(struct fs_inode));
 
     // READ ROOT DIR INODE
-    block_read(root_inode, 2, 1);
+    block_read(inodes+2, 2, 1);
 
     // int data_block_start = 3;
     // int data_block_end = 5; // how many data blocks are there???
@@ -100,7 +162,6 @@ void* fs_init(struct fuse_conn_info *conn)
     printf("Superblock details:\n");
     printf("Magic number: 0x%X\n", super_block->magic);
     printf("Disk size: %u\n", super_block->disk_size);
-    printf("bitmap size: %d\n", bitmap_size);
 
     printf("Block Bitmap: ");
     for (int i = 0; i < 2; i++) { // Print first 16 bits (2 bytes)
@@ -109,38 +170,19 @@ void* fs_init(struct fuse_conn_info *conn)
     printf("\n");
 
     printf("Root Inode details:\n");
-    printf("UID: %d\n", root_inode->uid);
-    printf("GID: %d\n", root_inode->gid);
-    printf("Mode: %o\n", root_inode->mode & __S_IFMT);
-    printf("Creation time: %u\n", root_inode->ctime);
-    printf("Modification time: %u\n", root_inode->mtime);
-    printf("Size: %d\n", root_inode->size);
-    printf("Size of arr: %ld\n", sizeof(root_inode->ptrs));
-    printf("ptr: %d\n", *(root_inode->ptrs));
-    printf("ptr: %ld, %ld\n", sizeof(struct fs_dirent), sizeof(struct fs_dirent *));
+    printf("UID: %d\n", (inodes+2)->uid);
+    printf("GID: %d\n", (inodes+2)->gid);
+    printf("Mode: %o\n", (inodes+2)->mode & __S_IFMT);
+    printf("Creation time: %u\n", (inodes+2)->ctime);
+    printf("Modification time: %u\n", (inodes+2)->mtime);
+    printf("Size: %d\n", (inodes+2)->size);
+    printf("Size of arr: %ld\n", sizeof((inodes+2)->ptrs));
+    printf("ptr: %d\n", *((inodes+2)->ptrs));
     
     struct fs_dirent *dirents = malloc(128 * sizeof(struct fs_dirent));
-    block_read(dirents, *(root_inode->ptrs), 1);
-    struct fs_dirent *entry = NULL;
-    for(int i = 0; i < 128; i++){
-        entry = dirents + i;
-        if(entry->valid){
-            printf("i: %d\n", i);
-            printf("valid: %d\n", entry->valid);
-            printf("inode #: %d\n", entry->inode);
-            printf("name: %s\n", entry->name);
-        }
-    }
+    block_read(dirents, *((inodes+2)->ptrs), 1);
 
-    // Create function that reads the root dir
-    // pass in until valid == 0 and name empty
-    /*func:
-        read inode -> global inode map for reading in???
-        do mode check
-        if mode == dir:
-            read dir
-            recursively call func passing in inode
-    */
+    process_init_read_in(dirents);
 
     return super_block;
 }
@@ -185,7 +227,31 @@ void* fs_init(struct fuse_conn_info *conn)
 int fs_getattr(const char *path, struct stat *sb)
 {
     /* your code here */
-    return -EOPNOTSUPP;
+    char **argv = (char **)malloc(10 * (27 * sizeof(char)));
+    char *pathd = strdup(path);
+    int pathc = parse(pathd, argv);
+    free(pathd);
+    int inum;
+    if(pathc == 0) {
+        inum = 2;
+    } else {
+        inum = translate(pathc, argv);
+    }
+    if(inum < 0) {
+        return -ENOENT;
+    }
+    printf("arguments num (%s): %d\n", pathd, pathc);
+    printf("inum: %d\n", inum);
+    struct fs_inode *iq = inodes+inum;
+    sb->st_ino=inum;
+    sb->st_atime=iq->mtime;
+    sb->st_ctime=iq->mtime;
+    sb->st_nlink=1;
+    sb->st_uid=iq->uid;
+    sb->st_gid=iq->gid;
+    sb->st_size=iq->size;
+    sb->st_mode=iq->mode;
+    return 0;
 }
 
 /* readdir - get directory contents.
