@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 #include "fs5600.h"
 
@@ -48,8 +49,9 @@ int bit_test(unsigned char *map, int i)
     return map[i/8] & (1 << (i%8));
 }
 
-/* Global Variables
- */
+/* Global Variables */
+
+
 
 
 /* init - this is called once by the FUSE framework at startup. Ignore
@@ -90,29 +92,15 @@ void* fs_init(struct fuse_conn_info *conn)
     // READ ROOT DIR INODE
     block_read(root_inode, 2, 1);
 
-    int data_block_start = 3;
-    int data_block_end = 5; // how many data blocks are there???
-
-    char *data_block = malloc(FS_BLOCK_SIZE);
-
-    for (int i = 0; i < data_block_end; i++) {
-        int data_block_location = data_block_start + i;
-        // READ DATA
-        block_read(data_block, data_block_location, 1); 
-
-        // Print the first few bytes of each data block to verify
-        printf("Data Block %d (First 16 Bytes):\n", data_block_location);
-        for (int j = 0; j < 16; j++) {
-            printf("%02X ", (unsigned char)data_block[j]);
-        }
-        printf("\n");
-    }
+    // int data_block_start = 3;
+    // int data_block_end = 5; // how many data blocks are there???
 
 
     // prints to validate
     printf("Superblock details:\n");
     printf("Magic number: 0x%X\n", super_block->magic);
     printf("Disk size: %u\n", super_block->disk_size);
+    printf("bitmap size: %d\n", bitmap_size);
 
     printf("Block Bitmap: ");
     for (int i = 0; i < 2; i++) { // Print first 16 bits (2 bytes)
@@ -123,10 +111,36 @@ void* fs_init(struct fuse_conn_info *conn)
     printf("Root Inode details:\n");
     printf("UID: %d\n", root_inode->uid);
     printf("GID: %d\n", root_inode->gid);
-    printf("Mode: %d\n", root_inode->mode);
+    printf("Mode: %o\n", root_inode->mode & __S_IFMT);
     printf("Creation time: %u\n", root_inode->ctime);
     printf("Modification time: %u\n", root_inode->mtime);
     printf("Size: %d\n", root_inode->size);
+    printf("Size of arr: %ld\n", sizeof(root_inode->ptrs));
+    printf("ptr: %d\n", *(root_inode->ptrs));
+    printf("ptr: %ld, %ld\n", sizeof(struct fs_dirent), sizeof(struct fs_dirent *));
+    
+    struct fs_dirent *dirents = malloc(128 * sizeof(struct fs_dirent));
+    block_read(dirents, *(root_inode->ptrs), 1);
+    struct fs_dirent *entry = NULL;
+    for(int i = 0; i < 128; i++){
+        entry = dirents + i;
+        if(entry->valid){
+            printf("i: %d\n", i);
+            printf("valid: %d\n", entry->valid);
+            printf("inode #: %d\n", entry->inode);
+            printf("name: %s\n", entry->name);
+        }
+    }
+
+    // Create function that reads the root dir
+    // pass in until valid == 0 and name empty
+    /*func:
+        read inode -> global inode map for reading in???
+        do mode check
+        if mode == dir:
+            read dir
+            recursively call func passing in inode
+    */
 
     return super_block;
 }
