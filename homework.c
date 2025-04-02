@@ -88,6 +88,7 @@ void process_init_read_in(struct fs_dirent * dir) {
                 struct fs_dirent *n_dir = malloc(4096);
                 block_read(n_dir, *(n_inode->ptrs), 1);
                 process_init_read_in(n_dir);
+                free(n_dir);
             }
         }
     }
@@ -120,6 +121,31 @@ int translate(int pathc, char **pathv) {
         }
     }
     return -ENOENT;
+}
+
+int get_inum(char *pathd) {
+    char **argv = (char **)malloc(10 * (27 * sizeof(char)));
+    int pathc = parse(pathd, argv);
+    free(pathd);
+    int inum;
+    if(pathc == 0) {
+        inum = 2;
+    } else {
+        inum = translate(pathc, argv);
+    }
+    free(argv);
+    return inum;
+}
+
+void fill_stat(struct fs_inode *iq, struct stat *sb, int inum) {
+    sb->st_ino=inum;
+    sb->st_atime=iq->mtime;
+    sb->st_ctime=iq->mtime;
+    sb->st_nlink=1;
+    sb->st_uid=iq->uid;
+    sb->st_gid=iq->gid;
+    sb->st_size=iq->size;
+    sb->st_mode=iq->mode;
 }
 
 /* init - this is called once by the FUSE framework at startup. Ignore
@@ -183,7 +209,7 @@ void* fs_init(struct fuse_conn_info *conn)
     block_read(dirents, *((inodes+2)->ptrs), 1);
 
     process_init_read_in(dirents);
-
+    free(dirents);
     return super_block;
 }
 
@@ -227,30 +253,11 @@ void* fs_init(struct fuse_conn_info *conn)
 int fs_getattr(const char *path, struct stat *sb)
 {
     /* your code here */
-    char **argv = (char **)malloc(10 * (27 * sizeof(char)));
     char *pathd = strdup(path);
-    int pathc = parse(pathd, argv);
-    free(pathd);
-    int inum;
-    if(pathc == 0) {
-        inum = 2;
-    } else {
-        inum = translate(pathc, argv);
-    }
-    if(inum < 0) {
-        return -ENOENT;
-    }
-    printf("arguments num (%s): %d\n", pathd, pathc);
+    int inum = get_inum(pathd);
+    if(inum < 0) return inum;
     printf("inum: %d\n", inum);
-    struct fs_inode *iq = inodes+inum;
-    sb->st_ino=inum;
-    sb->st_atime=iq->mtime;
-    sb->st_ctime=iq->mtime;
-    sb->st_nlink=1;
-    sb->st_uid=iq->uid;
-    sb->st_gid=iq->gid;
-    sb->st_size=iq->size;
-    sb->st_mode=iq->mode;
+    fill_stat(inodes+inum, sb, inum);
     return 0;
 }
 
@@ -270,7 +277,28 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
 		       off_t offset, struct fuse_file_info *fi)
 {
     /* your code here */
-    return -EOPNOTSUPP;
+    char *pathd = strdup(path);
+    int inum = get_inum(pathd);
+    if(inum < 0) return inum;
+    
+    printf("inum: %d\n", inum);
+
+    if(!S_ISDIR((inodes+inum)->mode)) return -ENOTDIR;
+
+    struct fs_dirent *dirents = malloc(128 * sizeof(struct fs_dirent));
+    block_read(dirents, *((inodes+inum)->ptrs), 1);
+    struct fs_inode *ino = malloc(sizeof(struct fs_inode));
+    struct stat *sb = malloc(sizeof(struct stat));
+
+    for(int i = 0; i < 128; i++) {
+        struct fs_dirent *ent = dirents+i;
+        if(ent->valid) {
+            block_read(ino, ent->inode, 1);
+            fill_stat(inodes+(ent->inode), sb, ent->inode);
+            filler(ptr, ent->name, sb, 0);
+        }
+    }
+    return 0;
 }
 
 /* create - create a new file with specified permissions
