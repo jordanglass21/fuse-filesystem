@@ -100,7 +100,9 @@ int parse(char *path, char **argv) {
         if ((argv[i] = strtok(path, "/")) == NULL)
             break;
         if (strlen(argv[i]) > MAX_NAME_LEN)
-            argv[i][MAX_NAME_LEN] = 0; 
+            argv[i][MAX_NAME_LEN] = '\0';
+        else
+            argv[i][strlen(argv[i])] = '\0'; 
         path = NULL;
     }
     return i;
@@ -124,9 +126,8 @@ int translate(int pathc, char **pathv) {
 }
 
 int get_inum(char *pathd) {
-    char **argv = (char **)malloc(10 * (27 * sizeof(char)));
+    char **argv = (char **)malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
     int pathc = parse(pathd, argv);
-    free(pathd);
     int inum;
     if(pathc == 0) {
         inum = 2;
@@ -134,6 +135,7 @@ int get_inum(char *pathd) {
         inum = translate(pathc, argv);
     }
     free(argv);
+    free(pathd);
     return inum;
 }
 
