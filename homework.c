@@ -28,6 +28,8 @@
 #define read(a,b,c) error do not use read()
 #define write(a,b,c) error do not use write()
 
+#define INODE_SIZE 128 // is this right?
+
 /* disk access. All access is in terms of 4KB blocks; read and
  * write functions return 0 (success) or -EIO.
  */
@@ -82,7 +84,10 @@ void process_init_read_in(struct fs_dirent * dir) {
             
             struct fs_inode *n_inode = inodes+(entry->inode);
 
-            block_read(n_inode, entry->inode, 1);
+            //block_read(n_inode, entry->inode, 1);
+            int inodes_per_block = FS_BLOCK_SIZE / INODE_SIZE;
+            int data_region = 2 + (entry->inode / inodes_per_block );
+            block_read(n_inode, data_region, 1); // i think this is how we calculate the datablocks we read in?
 
             if(S_ISDIR(n_inode->mode)) {
                 struct fs_dirent *n_dir = malloc(4096);
@@ -110,18 +115,31 @@ int parse(char *path, char **argv) {
 
 int translate(int pathc, char **pathv) {
     int inum = 2;
+    int inode_found = 0;
     struct fs_dirent *dir = malloc(4096);
     for(int i = 0; i < pathc; i++) {
         if(!S_ISDIR((inodes+inum)->mode)) {
             return -ENOTDIR;
         }
+
         block_read(dir, *((inodes+inum)->ptrs), 1);
+
         for(int j = 0; j < 128; j++) {
             if(strcmp((dir+j)->name, *(pathv+i)) == 0) {
-                return (dir+j)->inode;
+                //return (dir +j)->inode; this is how it was before
+                inum = (dir + j)->inode; // i think we need to keep looking to find a nested dir
+                inode_found = 1;
+                break;
             }
         }
     }
+
+    free(dir);
+
+    if(inode_found == 1) { // so now we return the deeply nested inode here
+        return inum;
+    }
+
     return -ENOENT;
 }
 
