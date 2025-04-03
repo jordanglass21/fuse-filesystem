@@ -447,7 +447,7 @@ int fs_read(const char *path, char *buf, size_t len, off_t offset,
 {
 
     int inum = get_inum(strdup(path));
-    struct fs_inode *inode = inodes+inum+offset;
+    struct fs_inode *inode = inodes+inum;
     if(inum < 0) {
         return inum;
     }
@@ -461,7 +461,7 @@ int fs_read(const char *path, char *buf, size_t len, off_t offset,
         return 0;
     }
 
-    char *temp_buf = malloc(inode->size);
+    char *temp_buf = malloc(FS_BLOCK_SIZE*DIV_ROUND_UP(inode->size, 4096));
     for(int i=0; i < 1019; i++) {
         if (inode->ptrs[i] == 0) {
             break;
@@ -471,12 +471,13 @@ int fs_read(const char *path, char *buf, size_t len, off_t offset,
 
     
     if(offset+len > file_len) {
-        strncpy(buf, temp_buf + offset, inode->size - offset);
-        return inode->size - offset;
+        memcpy(buf, temp_buf + offset, inode->size - offset);
+        free(temp_buf);
+        return (inode->size) - offset;
     } else {
-        strncpy(buf, temp_buf + offset, len);
+        memcpy(buf, temp_buf + offset, len);
     }
-
+    free(temp_buf);
     return len;
 
     // return 0;
