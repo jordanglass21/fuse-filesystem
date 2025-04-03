@@ -84,10 +84,10 @@ void process_init_read_in(struct fs_dirent * dir) {
             
             struct fs_inode *n_inode = inodes+(entry->inode);
 
-            //block_read(n_inode, entry->inode, 1);
-            int inodes_per_block = FS_BLOCK_SIZE / INODE_SIZE;
-            int data_region = 2 + (entry->inode / inodes_per_block );
-            block_read(n_inode, data_region, 1); // i think this is how we calculate the datablocks we read in?
+            block_read(n_inode, entry->inode, 1);
+            // int inodes_per_block = FS_BLOCK_SIZE / INODE_SIZE;
+            // int data_region = 2 + (entry->inode / inodes_per_block);
+            // block_read(n_inode, data_region, 1); // i think this is how we calculate the datablocks we read in?
 
             if(S_ISDIR(n_inode->mode)) {
                 struct fs_dirent *n_dir = malloc(4096);
@@ -115,9 +115,10 @@ int parse(char *path, char **argv) {
 
 int translate(int pathc, char **pathv) {
     int inum = 2;
-    int inode_found = 0;
+    int inode_found;
     struct fs_dirent *dir = malloc(4096);
     for(int i = 0; i < pathc; i++) {
+        inode_found = 0;
         if(!S_ISDIR((inodes+inum)->mode)) {
             return -ENOTDIR;
         }
@@ -126,7 +127,7 @@ int translate(int pathc, char **pathv) {
 
         for(int j = 0; j < 128; j++) {
             if(strcmp((dir+j)->name, *(pathv+i)) == 0) {
-                //return (dir +j)->inode; this is how it was before
+                //return (dir + j)->inode; this is how it was before
                 inum = (dir + j)->inode; // i think we need to keep looking to find a nested dir
                 inode_found = 1;
                 break;
@@ -160,7 +161,8 @@ int get_inum(char *pathd) {
 void fill_stat(struct fs_inode *iq, struct stat *sb, int inum) {
     sb->st_ino=inum;
     sb->st_atime=iq->mtime;
-    sb->st_ctime=iq->mtime;
+    sb->st_mtime=iq->mtime;
+    sb->st_ctime=iq->ctime;
     sb->st_nlink=1;
     sb->st_uid=iq->uid;
     sb->st_gid=iq->gid;
@@ -443,8 +445,41 @@ int fs_truncate(const char *path, off_t len)
 int fs_read(const char *path, char *buf, size_t len, off_t offset,
 	    struct fuse_file_info *fi)
 {
-    /* your code here */
-    return -EOPNOTSUPP;
+
+    int inum = get_inum(strdup(path));
+    struct fs_inode *inode = inodes+inum+offset;
+    if(inum < 0) {
+        return inum;
+    }
+    if(S_ISDIR((inode)->mode)) {
+        return -EISDIR;
+    }
+
+    int file_len = inode->size;
+
+    if(offset >= file_len) {
+        return 0;
+    }
+
+    char *temp_buf = malloc(inode->size);
+    for(int i=0; i < 1019; i++) {
+        if (inode->ptrs[i] == 0) {
+            break;
+        }
+        block_read(temp_buf, inode->ptrs[i], 1);
+    }
+
+    
+    if(offset+len > file_len) {
+        strncpy(buf, temp_buf + offset, inode->size - offset);
+        return inode->size - offset;
+    } else {
+        strncpy(buf, temp_buf + offset, len);
+    }
+
+    return len;
+
+    // return 0;
 }
 
 /* write - write data to a file

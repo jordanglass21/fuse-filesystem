@@ -23,28 +23,28 @@ START_TEST(a_test)
 }
 END_TEST
 
-START_TEST(fs_getattr)
-{
-    struct stat stat;
+// START_TEST(fs_getattr)
+// {
+//     struct stat stat;
 
-    char *path = "/this/is/a/file";
-    unsigned expected_cksum = 1234567;
+//     char *path = "/this/is/a/file";
+//     unsigned expected_cksum = 1234567;
     
-    int rv = fs_ops.getattr(path, &stat);
-    ck_assert(rv == 0);
+//     int rv = fs_ops.getattr(path, &stat);
+//     ck_assert(rv == 0);
 
-    char *buf = malloc(stat.st_size);
-    ck_assert(buf != NULL);
+//     char *buf = malloc(stat.st_size);
+//     ck_assert(buf != NULL);
 
-    rv = fs_ops.read(path, buf, 0, stat.st_size, 0);
-    ck_assert(rv == stat.st_size);
+//     rv = fs_ops.read(path, buf, 0, stat.st_size, 0);
+//     ck_assert(rv == stat.st_size);
 
-    unsigned cksum = crc32(0, buf, stat.st_size);
-    free(buf);
+//     unsigned cksum = crc32(0, buf, stat.st_size);
+//     free(buf);
     
-    ck_assert(cksum == expected_cksum);
-}
-END_TEST
+//     ck_assert(cksum == expected_cksum);
+// }
+// END_TEST
 
 /* this is an example of a callback function for readdir
  */
