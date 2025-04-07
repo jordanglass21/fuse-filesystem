@@ -17,11 +17,11 @@
 
 
 /* change test name and make it do something useful */
-START_TEST(a_test)
-{
-    ck_assert_int_eq(1, 1);
-}
-END_TEST
+// START_TEST(a_test)
+// {
+//     ck_assert_int_eq(1, 1);
+// }
+// END_TEST
 
 // START_TEST(fs_getattr)
 // {
@@ -68,18 +68,267 @@ int empty_filler(void *ptr, const char *name, const struct stat *stbuf,
 extern struct fuse_operations fs_ops;
 extern void block_init(char *file);
 
+START_TEST(root) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/", sb);
+    ck_assert_int_eq(0, sb->st_uid);
+    ck_assert_int_eq(0, sb->st_gid);
+    ck_assert_int_eq(040777, sb->st_mode);
+    ck_assert_int_eq(4096, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(file1k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/file.1k", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(1000, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283152, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(file10) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/file.10", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(10, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_long) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir-with-long-name", sb);
+    ck_assert_int_eq(0, sb->st_uid);
+    ck_assert_int_eq(0, sb->st_gid);
+    ck_assert_int_eq(040777, sb->st_mode);
+    ck_assert_int_eq(4096, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_long_file12k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir-with-long-name/file.12k+", sb);
+    ck_assert_int_eq(0, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(12289, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_2) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir2", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(040777, sb->st_mode);
+    ck_assert_int_eq(8192, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_2_27byteName) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir2/twenty-seven-byte-file-name", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(1000, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_2_file4k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir2/file.4k+", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100777, sb->st_mode);
+    ck_assert_int_eq(4098, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_3) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir3", sb);
+    ck_assert_int_eq(0, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(040777, sb->st_mode);
+    ck_assert_int_eq(4096, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_3_subdir) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir3/subdir", sb);
+    ck_assert_int_eq(0, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(040777, sb->st_mode);
+    ck_assert_int_eq(4096, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_3_subdir_f4k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir3/subdir/file.4k-", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(4095, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_3_subdir_f8k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir3/subdir/file.8k-", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(8190, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_3_subdir_f12k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir3/subdir/file.12k", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(12288, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_3_f12k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir3/file.12k-", sb);
+    ck_assert_int_eq(0, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100777, sb->st_mode);
+    ck_assert_int_eq(12287, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(dir_f8k) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    fs_ops.getattr("/file.8k+", sb);
+    ck_assert_int_eq(500, sb->st_uid);
+    ck_assert_int_eq(500, sb->st_gid);
+    ck_assert_int_eq(0100666, sb->st_mode);
+    ck_assert_int_eq(8195, sb->st_size);
+    ck_assert_int_eq(1565283152, sb->st_ctime);
+    ck_assert_int_eq(1565283167, sb->st_mtime);
+    free(sb);
+}
+END_TEST
+
+START_TEST(no_entry) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    int err = fs_ops.getattr("/not-a-file", sb);
+    ck_assert_int_eq(-ENOENT, err);
+    free(sb);
+}
+END_TEST
+
+START_TEST(no_dir) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    int err = fs_ops.getattr("/file.1k/file.0", sb);
+    ck_assert_int_eq(-ENOTDIR, err);
+    free(sb);
+}
+END_TEST
+
+START_TEST(no_dir_mid) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    int err = fs_ops.getattr("/files/file.12k-", sb);
+    ck_assert_int_eq(-ENOENT, err);
+    free(sb);
+}
+END_TEST
+
+START_TEST(no_file_sub) {
+    struct stat *sb = malloc(sizeof(struct stat));
+    int err = fs_ops.getattr("/dir2/rouge_file", sb);
+    ck_assert_int_eq(-ENOENT, err);
+    free(sb);
+}
+END_TEST
+
+void get_attr_tests(TCase *tc){
+    tcase_add_test(tc, root);
+    tcase_add_test(tc, file1k);
+    tcase_add_test(tc, file10);
+    tcase_add_test(tc, dir_long);
+    tcase_add_test(tc, dir_long_file12k);
+    tcase_add_test(tc, dir_2);
+    tcase_add_test(tc, dir_2_27byteName);
+    tcase_add_test(tc, dir_2_file4k);
+    tcase_add_test(tc, dir_3);
+    tcase_add_test(tc, dir_3_subdir);
+    tcase_add_test(tc, dir_3_subdir_f4k);
+    tcase_add_test(tc, dir_3_subdir_f8k);
+    tcase_add_test(tc, dir_3_subdir_f12k);
+    tcase_add_test(tc, dir_3_f12k);
+    tcase_add_test(tc, dir_f8k);
+    tcase_add_test(tc, no_entry);
+    tcase_add_test(tc, no_dir);
+    tcase_add_test(tc, no_dir_mid);
+    tcase_add_test(tc, no_file_sub);
+}
+
 int main(int argc, char **argv)
 {
+    system("python gen-disk.py -q disk1.in test.img");
     block_init("test.img");
     fs_ops.init(NULL);
     
-    Suite *s = suite_create("fs5600");
-    TCase *tc = tcase_create("read_mostly");
+    Suite *s = suite_create("fs5600:read_mostly");
+    TCase *getattr = tcase_create("get_attr");
 
-    tcase_add_test(tc, a_test); /* see START_TEST above */
-    /* add more tests here */
+    get_attr_tests(getattr);
 
-    suite_add_tcase(s, tc);
+    suite_add_tcase(s, getattr);
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     
