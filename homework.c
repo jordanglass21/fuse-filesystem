@@ -170,6 +170,16 @@ void fill_stat(struct fs_inode *iq, struct stat *sb, int inum) {
     sb->st_mode=iq->mode;
 }
 
+int get_used_blocks() {
+    int used_count = 0;
+    for(int i = 0; i < super_block->disk_size; i++) {
+        if(bit_test(block_bitmap, i)) {
+            used_count++;
+        }
+    }
+    return used_count;
+}
+
 /* init - this is called once by the FUSE framework at startup. Ignore
  * the 'conn' argument.
  * recommended actions:
@@ -394,8 +404,53 @@ int fs_rmdir(const char *path)
  */
 int fs_rename(const char *src_path, const char *dst_path)
 {
-    /* your code here */
-    return -EOPNOTSUPP;
+    // if src does not exist
+    char *paths= strdup(src_path);
+    int inum_source = get_inum(paths);
+    if(inum_source < 0) {
+        return -ENOENT;
+    }
+
+    // if dest does not exist
+    char *pathd = strdup(dst_path);
+    int inum_dst = get_inum(pathd);
+    if(inum_dst > 0) {
+        return -EEXIST;
+    }
+
+    char** argv_source = (char**) malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
+    char** argv_dest = (char**) malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
+
+    int pathc_source = parse(strdup(src_path), argv_source);
+    int pathc_dest = parse(strdup(dst_path), argv_dest);
+
+    // if src path does not equal dest path
+    if(pathc_source != pathc_dest) {
+        return -EINVAL;
+    }
+
+    for(int i = 0; i < pathc_source-1; i++) {
+        if(strcmp(argv_source[i], argv_dest[i]) != 0) {
+            return -EINVAL;
+        }
+    }
+
+    // do renaming
+    int parent_dir_inum = translate(pathc_source-1, argv_source);
+    struct fs_dirent *dir = malloc(4096);
+    block_read(dir, *((inodes+parent_dir_inum)->ptrs), 1);
+    for(int i = 0; i < 128; i++) {
+        if(strcmp((dir+i)->name, *(argv_source+pathc_source-1)) == 0) {
+            strcpy((dir+i)->name, *(argv_dest+pathc_dest-1));
+            block_write(dir, *((inodes+parent_dir_inum)->ptrs), 1);
+            break;
+        }
+    }
+    free(dir);
+    free(argv_source);
+    free(argv_dest);
+    // TODO: change last update date
+    return 0; //success
 }
 
 /* chmod - change file permissions
@@ -407,8 +462,19 @@ int fs_rename(const char *src_path, const char *dst_path)
  */
 int fs_chmod(const char *path, mode_t mode)
 {
-    /* your code here */
-    return -EOPNOTSUPP;
+    // if path does not exist
+    printf("chmod mode: %d\n", mode);
+    char *paths= strdup(path);
+    int inum_source = get_inum(paths);
+    if(inum_source < 0) {
+        return -ENOENT;
+    }
+
+    //chnage file permission
+    struct fs_inode *inode = inodes+inum_source;
+    inode->mode = mode;
+
+    return 0; // success
 }
 
 int fs_utime(const char *path, struct utimbuf *ut)
@@ -514,8 +580,23 @@ int fs_statfs(const char *path, struct statvfs *st)
      * it's OK to calculate this dynamically on the rare occasions
      * when this function is called.
      */
-    /* your code here */
-    return -EOPNOTSUPP;
+
+    st->f_bsize = FS_BLOCK_SIZE;
+    st->f_blocks = super_block->disk_size - 2; 
+    st->f_bfree =  st->f_blocks - get_used_blocks();
+    st->f_bavail = st->f_bfree;
+    st->f_namemax = MAX_NAME_LEN;
+
+    st->f_files = 0;
+    st->f_ffree = 0;
+    st->f_favail = 0;
+    st->f_flag = 0;
+    st->f_fsid = 0;
+    for(int i = 0; i < 6; i++) {
+        st->__f_spare[i] = 0;
+    }
+
+    return 0;
 }
 
 /* operations vector. Please don't rename it, or else you'll break things
