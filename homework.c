@@ -369,40 +369,43 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
  */
 int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-    /* your code here */
     char *pathd = strdup(path);
-    char **argv = (char **)malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
-    int pathc = parse(pathd, argv);
-    int dirInum = translate(pathc-1, argv);
+    char **pathv = (char **)malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
+    int pathc = parse(pathd, pathv);
+    int dirInum = translate(pathc-1, pathv);
     
     if(dirInum < 0) return dirInum;
-    int nInum = get_inum(pathd);
-    if(nInum > 2) return -EEXIST;
+    int nInum = get_inum(strdup(pathd));
+    if(nInum > 0) return -EEXIST;
     struct fs_dirent *dir = malloc(128 * sizeof(struct fs_dirent));
+    block_read(dir, *((inodes+dirInum)->ptrs), 1);
     struct fs_dirent *entry;
     
     int i=0;
     for(; i < 128; i++) {
         entry = dir+i;
-        if(!entry->valid) {
+        if(!entry->valid && *(entry->name) == '\000') {
             break;
         }
     }
     
     if(i == 128) {
         free(dir);
+        free(pathv);
         return -ENOSPC;
     }
 
     entry->valid = 1;
-    strcpy(entry->name, *(argv+(pathc-1)));
+    strcpy(entry->name, *(pathv+(pathc-1)));
     nInum = find_free();
     if(nInum < 0) return nInum;
     bit_set(block_bitmap, nInum);
     entry->inode = nInum;
-    struct fs_inode fsi;
-    fsi.mode=mode;
-    block_write(&fsi, nInum, 1);
+    struct fs_inode *fsi = inodes+nInum;
+    fsi->mode=mode;
+    
+    block_write(fsi, nInum, 1);
+    block_write(dir, *((inodes+dirInum)->ptrs), 1);
 
     return 0;
 }
@@ -419,7 +422,13 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 int fs_mkdir(const char *path, mode_t mode)
 {
     /* your code here */
-    return -EOPNOTSUPP;
+    int err = fs_create(path, __S_IFDIR | mode, NULL);
+    if(err < 0) return err;
+    struct utimbuf ut;
+    ut.actime = time(NULL);
+    ut.modtime = time(NULL);
+    utime(path, &ut);
+    return err;
 }
 
 
@@ -534,8 +543,16 @@ int fs_chmod(const char *path, mode_t mode)
 
 int fs_utime(const char *path, struct utimbuf *ut)
 {
-    /* your code here */
-    return -EOPNOTSUPP;
+    int inum = get_inum(strdup(path));
+    if(inum < 0) {
+        return -EOPNOTSUPP;
+    }
+    struct fs_inode *inode = inodes+inum;
+
+    inode->ctime = time(NULL);
+    inode->mtime = ut->modtime;
+
+    return 0;
 }
 
 /* truncate - truncate file to exactly 'len' bytes
