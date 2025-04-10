@@ -180,6 +180,17 @@ int get_used_blocks() {
     return used_count;
 }
 
+int find_free() {
+    int block = 0;
+    for(int i = 0; i < super_block->disk_size; i++) {
+        if(!bit_test(block_bitmap, i)) {
+            block = i;
+        }
+    }
+    if(block == 0) return -ENOSPC;
+    return block;
+}
+
 /* init - this is called once by the FUSE framework at startup. Ignore
  * the 'conn' argument.
  * recommended actions:
@@ -310,7 +321,13 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
 {
     /* your code here */
     char *pathd = strdup(path);
+    char **argv = (char **)malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
+    
+    int pathc = parse(pathd, argv);
+    int prevInum = translate(pathc-1, argv);
+    if(prevInum < 2) prevInum = 2;
     int inum = get_inum(pathd);
+    free(argv);
     if(inum < 0) return inum;
     
     printf("inum: %d\n", inum);
@@ -321,7 +338,10 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
     block_read(dirents, *((inodes+inum)->ptrs), 1);
     struct fs_inode *ino = malloc(sizeof(struct fs_inode));
     struct stat *sb = malloc(sizeof(struct stat));
-
+    fill_stat(inodes+inum, sb, inum);
+    filler(ptr, ".", sb, 0);
+    fill_stat(inodes+prevInum, sb, prevInum);
+    filler(ptr, "..", sb, 0);
     for(int i = 0; i < 128; i++) {
         struct fs_dirent *ent = dirents+i;
         if(ent->valid) {
@@ -350,7 +370,41 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
 int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
     /* your code here */
-    return -EOPNOTSUPP;
+    char *pathd = strdup(path);
+    char **argv = (char **)malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
+    int pathc = parse(pathd, argv);
+    int dirInum = translate(pathc-1, argv);
+    
+    if(dirInum < 0) return dirInum;
+    int nInum = get_inum(pathd);
+    if(nInum > 2) return -EEXIST;
+    struct fs_dirent *dir = malloc(128 * sizeof(struct fs_dirent));
+    struct fs_dirent *entry;
+    
+    int i=0;
+    for(; i < 128; i++) {
+        entry = dir+i;
+        if(!entry->valid) {
+            break;
+        }
+    }
+    
+    if(i == 128) {
+        free(dir);
+        return -ENOSPC;
+    }
+
+    entry->valid = 1;
+    strcpy(entry->name, *(argv+(pathc-1)));
+    nInum = find_free();
+    if(nInum < 0) return nInum;
+    bit_set(block_bitmap, nInum);
+    entry->inode = nInum;
+    struct fs_inode fsi;
+    fsi.mode=mode;
+    block_write(&fsi, nInum, 1);
+
+    return 0;
 }
 
 /* mkdir - create a directory with the given mode.
@@ -473,6 +527,7 @@ int fs_chmod(const char *path, mode_t mode)
     //chnage file permission
     struct fs_inode *inode = inodes+inum_source;
     inode->mode = mode;
+    block_write(inode, inum_source, 1);
 
     return 0; // success
 }
@@ -532,7 +587,7 @@ int fs_read(const char *path, char *buf, size_t len, off_t offset,
         if (inode->ptrs[i] == 0) {
             break;
         }
-        block_read(temp_buf, inode->ptrs[i], 1);
+        block_read(temp_buf+(i*4096), inode->ptrs[i], 1);
     }
 
     
