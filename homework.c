@@ -375,7 +375,7 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     int dirInum = translate(pathc-1, pathv);
     
     if(dirInum < 0) return dirInum;
-    int nInum = get_inum(strdup(pathd));
+    int nInum = get_inum(strdup(path));
     if(nInum > 0) return -EEXIST;
     struct fs_dirent *dir = malloc(128 * sizeof(struct fs_dirent));
     block_read(dir, *((inodes+dirInum)->ptrs), 1);
@@ -403,8 +403,9 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     entry->inode = nInum;
     struct fs_inode *fsi = inodes+nInum;
     fsi->mode=mode;
-    
+    (inodes+dirInum)->mtime=time(NULL);
     block_write(fsi, nInum, 1);
+    block_write(inodes+(dirInum), dirInum, 1);
     block_write(dir, *((inodes+dirInum)->ptrs), 1);
 
     return 0;
@@ -424,10 +425,21 @@ int fs_mkdir(const char *path, mode_t mode)
     /* your code here */
     int err = fs_create(path, __S_IFDIR | mode, NULL);
     if(err < 0) return err;
-    struct utimbuf ut;
-    ut.actime = time(NULL);
-    ut.modtime = time(NULL);
-    utime(path, &ut);
+    struct fs_inode *nInode = inodes+get_inum(strdup(path));
+    int freeblk = find_free();
+    bit_set(block_bitmap, freeblk);
+    memset(nInode->ptrs, 0, 4096);
+    for(int i = 0; i < 1019; i++) {
+        if(*((nInode->ptrs)+i) == 0) {
+            *((nInode->ptrs)+i) = freeblk;
+            break;
+        }
+    }
+    nInode->ctime=time(NULL);
+    nInode->mtime=time(NULL);
+    nInode->size=4096;
+    block_write(block_bitmap, 1, 1);
+    block_write(nInode,get_inum(strdup(path)), 1);
     return err;
 }
 
@@ -551,6 +563,8 @@ int fs_utime(const char *path, struct utimbuf *ut)
 
     inode->ctime = time(NULL);
     inode->mtime = ut->modtime;
+
+    block_write(inode, inum, 1);
 
     return 0;
 }
