@@ -420,7 +420,6 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
  */ 
 int fs_mkdir(const char *path, mode_t mode)
 {
-    /* your code here */
     int err = fs_create(path, __S_IFDIR | mode, NULL);
     if(err < 0) return err;
     struct fs_inode *nInode = inodes+get_inum(strdup(path));
@@ -449,53 +448,53 @@ int fs_mkdir(const char *path, mode_t mode)
 int fs_unlink(const char *path)
 {
     // validate the path
-    char *pathc = strdup(path);
-    int inum_source = get_inum(pathc);
-    if(inum_source < 0) {
-        free(pathc);
+    char *path_inum = strdup(path);
+    int inum_source = get_inum(path_inum);
+
+    if (inum_source < 0) {
         return -ENOENT;
     }
 
     // get inode
     struct fs_inode *inode = &inodes[inum_source];
 
-    if((inode->mode & __S_IFMT) == __S_IFDIR) {
+    if ((inode->mode & __S_IFMT) == __S_IFDIR) {
         // if its a dir
-        free(pathc);
         return -EISDIR;
-    } 
+    }
 
     // find parent dir
-    char** argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    for (int i=0; i<MAX_PATH_LEN; i++){
+    char *path_parse = strdup(path);
+    char **argv = malloc(MAX_PATH_LEN * sizeof(char *));
+    for (int i = 0; i < MAX_PATH_LEN; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
 
-    int pathd = parse(pathc, argv);
+    int pathd = parse(path_parse, argv);
+    free(path_parse);
 
     int parent;
-    if(pathd == 1) {
+    if (pathd == 1) {
         parent = 2; // parent dir is the root
     } else {
         parent = translate(pathd - 1, argv); // get the parent dir
     }
 
-    if(parent < 0) {
-        for(int i=0; i<MAX_PATH_LEN; i++) {
+    if (parent < 0) {
+        for (int i = 0; i < MAX_PATH_LEN; i++) {
             free(argv[i]);
         }
         free(argv);
-        free(pathc);
         return -ENOENT;
     }
 
     // read in parent dir 
-    struct fs_dirent *dirent = malloc(FS_BLOCK_SIZE);
+    struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * 128);
     block_read(dirent, inodes[parent].ptrs[0], 1);
 
     // do the delete
-    for(int i=0; i<128; i++) {
-        if(dirent[i].valid && dirent[i].inode == inum_source) {
+    for (int i = 0; i < 128; i++) {
+        if (dirent[i].valid && dirent[i].inode == inum_source) {
             dirent[i].valid = 0;
             memset(dirent[i].name, 0, MAX_NAME_LEN);
             break;
@@ -507,25 +506,24 @@ int fs_unlink(const char *path)
     free(dirent);
 
     // free data blocks
-    for(int i=0; i<6; i++) {
+    for (int i = 0; i < 6; i++) {
         int block = inode->ptrs[i];
-        if(block != 0) {
+        if (block != 0) {
             bit_clear(block_bitmap, block);
         }
     }
 
     // clear inode
     memset(inode, 0, sizeof(struct fs_inode));
-    
+
     // write  updates
     block_write(inodes, 1, 1);
 
     // free memory
-    for(int i=0; i<MAX_PATH_LEN; i++) {
+    for (int i = 0; i < MAX_PATH_LEN; i++) {
         free(argv[i]);
     }
     free(argv);
-    free(pathc);
 
     return 0; // success
 }
