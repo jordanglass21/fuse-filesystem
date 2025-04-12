@@ -181,14 +181,16 @@ int get_used_blocks() {
 }
 
 int find_free() {
-    int block = 0;
+    //int block = 0;
     for(int i = 0; i < super_block->disk_size; i++) {
         if(!bit_test(block_bitmap, i)) {
-            block = i;
+            //block = i;
+            return i; // return the first free block, no?
         }
     }
-    if(block == 0) return -ENOSPC;
-    return block;
+    //if(block == 0) return -ENOSPC;
+    //return block;
+    return -ENOSPC;
 }
 
 /* init - this is called once by the FUSE framework at startup. Ignore
@@ -223,29 +225,25 @@ void* fs_init(struct fuse_conn_info *conn)
     // READ ROOT DIR INODE
     block_read(inodes+2, 2, 1);
 
-    // int data_block_start = 3;
-    // int data_block_end = 5; // how many data blocks are there???
-
-
     // prints to validate
-    printf("Superblock details:\n");
+    printf("Superblock:\n");
     printf("Magic number: 0x%X\n", super_block->magic);
-    printf("Disk size: %u\n", super_block->disk_size);
+    printf("Disk Size: %u\n", super_block->disk_size);
 
-    printf("Block Bitmap: ");
+    printf("Block bitmap: ");
     for (int i = 0; i < 2; i++) { // Print first 16 bits (2 bytes)
         printf("%02X ", block_bitmap[i]);
     }
     printf("\n");
 
-    printf("Root Inode details:\n");
+    printf("Root inode details:\n");
     printf("UID: %d\n", (inodes+2)->uid);
     printf("GID: %d\n", (inodes+2)->gid);
     printf("Mode: %o\n", (inodes+2)->mode & __S_IFMT);
     printf("Creation time: %u\n", (inodes+2)->ctime);
     printf("Modification time: %u\n", (inodes+2)->mtime);
     printf("Size: %d\n", (inodes+2)->size);
-    printf("Size of arr: %ld\n", sizeof((inodes+2)->ptrs));
+    printf("Size of array: %ld\n", sizeof((inodes+2)->ptrs));
     printf("ptr: %d\n", *((inodes+2)->ptrs));
     
     struct fs_dirent *dirents = malloc(128 * sizeof(struct fs_dirent));
@@ -450,9 +448,92 @@ int fs_mkdir(const char *path, mode_t mode)
  */
 int fs_unlink(const char *path)
 {
-    /* your code here */
-    return -EOPNOTSUPP;
+    if (path == NULL || strcmp(path, "/") == 0) return -EINVAL;
+
+    // Duplicate the path and resolve the inode number
+    char *pathc = strdup(path);
+    int inum = get_inum(pathc);
+    if (inum < 0) {
+        free(pathc);
+        return -ENOENT;
+    }
+
+    struct fs_inode *inode = &inodes[inum];
+
+    // Can't unlink directories
+    if ((inode->mode & __S_IFMT) == __S_IFDIR) {
+        free(pathc);
+        return -EISDIR;
+    }
+
+    // Parse path into components
+    char **argv = malloc(MAX_PATH_LEN * sizeof(char *));
+    for (int i = 0; i < MAX_PATH_LEN; i++) {
+        argv[i] = malloc(MAX_NAME_LEN);
+    }
+    int path_depth = parse(pathc, argv);
+
+    int parent_inum;
+    if (path_depth == 1) {
+        parent_inum = 2;  // root directory
+    } else {
+        parent_inum = translate(path_depth - 1, argv);
+    }
+
+    if (parent_inum < 0) {
+        for (int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+        free(argv);
+        free(pathc);
+        return -ENOENT;
+    }
+
+    struct fs_inode *parent_inode = &inodes[parent_inum];
+
+    // Iterate over parent's direct pointers
+    for (int i = 0; i < 6; i++) {
+        int block = parent_inode->ptrs[i];
+        if (block == 0) continue;
+
+        struct fs_dirent *dirents = malloc(FS_BLOCK_SIZE);
+        block_read(dirents, block, 1);
+
+        for (int j = 0; j < FS_DIRENTS; j++) {
+            if (dirents[j].valid && dirents[j].inode == inum) {
+                dirents[j].valid = 0;
+                memset(dirents[j].name, 0, MAX_NAME_LEN);
+                block_write(dirents, block, 1);
+                free(dirents);
+
+                // Free data blocks
+                for (int k = 0; k < 6; k++) {
+                    if (inode->ptrs[k] != 0) {
+                        bit_clear(block_bitmap, inode->ptrs[k]);
+                    }
+                }
+
+                // TODO: handle indirect blocks if needed
+
+                // Clear inode and write it back
+                memset(inode, 0, sizeof(struct fs_inode));
+                block_write(inodes, 1, 1); // assuming inode table is block 1
+
+                for (int m = 0; m < MAX_PATH_LEN; m++) free(argv[m]);
+                free(argv);
+                free(pathc);
+                return 0;
+            }
+        }
+
+        free(dirents);
+    }
+
+    // Not found in parent's directory entries
+    for (int m = 0; m < MAX_PATH_LEN; m++) free(argv[m]);
+    free(argv);
+    free(pathc);
+    return -ENOENT;
 }
+
 
 /* rmdir - remove a directory
  *  success - return 0
