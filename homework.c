@@ -468,10 +468,17 @@ int fs_unlink(const char *path)
     char **argv = malloc(MAX_PATH_LEN * sizeof(char *));
     for (int i = 0; i < MAX_PATH_LEN; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
+        if(argv[i] == NULL) {
+            return -ENOENT;
+        }
     }
 
     int pathd = parse(path_parse, argv);
     free(path_parse);
+
+    for (int i = pathd; i < MAX_PATH_LEN; i++) {
+        argv[i] = NULL;
+    }
 
     int parent;
     if (pathd == 1) {
@@ -481,7 +488,7 @@ int fs_unlink(const char *path)
     }
 
     if (parent < 0) {
-        for (int i = 0; i < MAX_PATH_LEN; i++) {
+        for (int i = 0; i < pathd; i++) {
             free(argv[i]);
         }
         free(argv);
@@ -520,10 +527,14 @@ int fs_unlink(const char *path)
     block_write(inodes, 1, 1);
 
     // free memory
-    for (int i = 0; i < MAX_PATH_LEN; i++) {
-        free(argv[i]);
-    }
-    free(argv);
+    // for (int i = 0; i < pathd; i++) {
+    //     if(argv[i] != NULL) {
+    //         free(argv[i]);
+    //         argv[i] = NULL;
+    //     }
+    // }
+    // free(argv);
+    // argv = NULL;
 
     return 0; // success
 }
