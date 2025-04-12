@@ -448,92 +448,87 @@ int fs_mkdir(const char *path, mode_t mode)
  */
 int fs_unlink(const char *path)
 {
-    if (path == NULL || strcmp(path, "/") == 0) return -EINVAL;
-
-    // Duplicate the path and resolve the inode number
+    // validate the path
     char *pathc = strdup(path);
-    int inum = get_inum(pathc);
-    if (inum < 0) {
+    int inum_source = get_inum(pathc);
+    if(inum_source < 0) {
         free(pathc);
         return -ENOENT;
     }
 
-    struct fs_inode *inode = &inodes[inum];
+    // get inode
+    struct fs_inode *inode = &inodes[inum_source];
 
-    // Can't unlink directories
-    if ((inode->mode & __S_IFMT) == __S_IFDIR) {
+    if((inode->mode & __S_IFMT) == __S_IFDIR) {
+        // if its a dir
         free(pathc);
         return -EISDIR;
-    }
+    } 
 
-    // Parse path into components
-    char **argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    for (int i = 0; i < MAX_PATH_LEN; i++) {
+    // find parent dir
+    char** argv = malloc(MAX_PATH_LEN * sizeof(char *));
+    for (int i=0; i<MAX_PATH_LEN; i++){
         argv[i] = malloc(MAX_NAME_LEN);
     }
-    int path_depth = parse(pathc, argv);
 
-    int parent_inum;
-    if (path_depth == 1) {
-        parent_inum = 2;  // root directory
+    int pathd = parse(pathc, argv);
+
+    int parent;
+    if(pathd == 1) {
+        parent = 2; // parent dir is the root
     } else {
-        parent_inum = translate(path_depth - 1, argv);
+        parent = translate(pathd - 1, argv); // get the parent dir
     }
 
-    if (parent_inum < 0) {
-        for (int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    if(parent < 0) {
+        for(int i=0; i<MAX_PATH_LEN; i++) {
+            free(argv[i]);
+        }
         free(argv);
         free(pathc);
         return -ENOENT;
     }
 
-    struct fs_inode *parent_inode = &inodes[parent_inum];
+    // read in parent dir 
+    struct fs_dirent *dirent = malloc(FS_BLOCK_SIZE);
+    block_read(dirent, inodes[parent].ptrs[0], 1);
 
-    // Iterate over parent's direct pointers
-    for (int i = 0; i < 6; i++) {
-        int block = parent_inode->ptrs[i];
-        if (block == 0) continue;
-
-        struct fs_dirent *dirents = malloc(FS_BLOCK_SIZE);
-        block_read(dirents, block, 1);
-
-        for (int j = 0; j < FS_DIRENTS; j++) {
-            if (dirents[j].valid && dirents[j].inode == inum) {
-                dirents[j].valid = 0;
-                memset(dirents[j].name, 0, MAX_NAME_LEN);
-                block_write(dirents, block, 1);
-                free(dirents);
-
-                // Free data blocks
-                for (int k = 0; k < 6; k++) {
-                    if (inode->ptrs[k] != 0) {
-                        bit_clear(block_bitmap, inode->ptrs[k]);
-                    }
-                }
-
-                // TODO: handle indirect blocks if needed
-
-                // Clear inode and write it back
-                memset(inode, 0, sizeof(struct fs_inode));
-                block_write(inodes, 1, 1); // assuming inode table is block 1
-
-                for (int m = 0; m < MAX_PATH_LEN; m++) free(argv[m]);
-                free(argv);
-                free(pathc);
-                return 0;
-            }
+    // do the delete
+    for(int i=0; i<128; i++) {
+        if(dirent[i].valid && dirent[i].inode == inum_source) {
+            dirent[i].valid = 0;
+            memset(dirent[i].name, 0, MAX_NAME_LEN);
+            break;
         }
-
-        free(dirents);
     }
 
-    // Not found in parent's directory entries
-    for (int m = 0; m < MAX_PATH_LEN; m++) free(argv[m]);
+    // write to mem
+    block_write(dirent, inodes[parent].ptrs[0], 1);
+    free(dirent);
+
+    // free data blocks
+    for(int i=0; i<6; i++) {
+        int block = inode->ptrs[i];
+        if(block != 0) {
+            bit_clear(block_bitmap, block);
+        }
+    }
+
+    // clear inode
+    memset(inode, 0, sizeof(struct fs_inode));
+    
+    // write  updates
+    block_write(inodes, 1, 1);
+
+    // free memory
+    for(int i=0; i<MAX_PATH_LEN; i++) {
+        free(argv[i]);
+    }
     free(argv);
     free(pathc);
-    return -ENOENT;
-}
 
+    return 0; // success
+}
 
 /* rmdir - remove a directory
  *  success - return 0
