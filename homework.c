@@ -115,7 +115,7 @@ int parse(char *path, char **argv) {
 
 int translate(int pathc, char **pathv) {
     int inum = 2;
-    int inode_found;
+    int inode_found = 0;
     struct fs_dirent *dir = malloc(4096);
     for(int i = 0; i < pathc; i++) {
         inode_found = 0;
@@ -126,9 +126,9 @@ int translate(int pathc, char **pathv) {
         block_read(dir, *((inodes+inum)->ptrs), 1);
 
         for(int j = 0; j < 128; j++) {
-            if(strcmp((dir+j)->name, *(pathv+i)) == 0) {
+            if(dir[j].valid && strcmp((dir+j)->name, pathv[i]) == 0) {
                 //return (dir + j)->inode; this is how it was before
-                inum = (dir + j)->inode; // i think we need to keep looking to find a nested dir
+                inum = dir[j].inode; // i think we need to keep looking to find a nested dir
                 inode_found = 1;
                 break;
             }
@@ -447,10 +447,19 @@ int fs_mkdir(const char *path, mode_t mode)
  */
 int fs_unlink(const char *path)
 {
-    // validate the path
-    char *path_inum = strdup(path);
-    int inum_source = get_inum(path_inum);
 
+    char *modified_path;
+    if (path[0] != '/') {
+        modified_path = malloc(strlen(path) + 2);
+        sprintf(modified_path, "/%s", path);
+    } else {
+        modified_path = strdup(path);
+    }
+
+    printf("path: %s\n", path);
+    // if src does not exist
+    char *paths = strdup(modified_path);
+    int inum_source = get_inum(paths);
     if (inum_source < 0) {
         return -ENOENT;
     }
@@ -487,17 +496,24 @@ int fs_unlink(const char *path)
         parent = translate(pathd - 1, argv); // get the parent dir
     }
 
+    printf("parent: %d\n", parent);
     if (parent < 0) {
         for (int i = 0; i < pathd; i++) {
             free(argv[i]);
         }
         free(argv);
+        
         return -ENOENT;
+    } else if (parent < 2) {
+        parent = 2;
     }
 
     // read in parent dir 
     struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * 128);
-    block_read(dirent, inodes[parent].ptrs[0], 1);
+    block_read(dirent, (inodes+parent)->ptrs[0], 1);
+
+    printf("dir: %s\n", dirent->name);
+    printf("parent: %d\n", parent);
 
     // do the delete
     for (int i = 0; i < 128; i++) {
@@ -509,7 +525,7 @@ int fs_unlink(const char *path)
     }
 
     // write to mem
-    block_write(dirent, inodes[parent].ptrs[0], 1);
+    block_write(dirent, (inodes+parent)->ptrs[0], 1);
     free(dirent);
 
     // free data blocks
