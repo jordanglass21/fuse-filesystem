@@ -324,7 +324,8 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
     int pathc = parse(pathd, argv);
     int prevInum = translate(pathc-1, argv);
     if(prevInum < 2) prevInum = 2;
-    int inum = get_inum(pathd);
+    int inum = get_inum(strdup(path));
+    free(pathd);
     free(argv);
     if(inum < 0) return inum;
     
