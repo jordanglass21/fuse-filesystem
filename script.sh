@@ -6,7 +6,7 @@ read opt
 if [[ "$opt" == "q" ]]; then
     exit
 fi
-gdb --args ./hw3fuse -s -d -image test.img dir
+gdb --args ./hw3fuse -s -d -image test2.img dir
 echo "Is the test terminal at project root? (Enter to continue with unmounting)"
 read
 fusermount -u dir

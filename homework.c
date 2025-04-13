@@ -889,7 +889,47 @@ int fs_write(const char *path, const char *buf, size_t len,
 	     off_t offset, struct fuse_file_info *fi)
 {
     /* your code here */
-    return -EOPNOTSUPP;
+    int inum = get_inum(strdup(path));
+    if(inum < 0) return inum;
+
+    struct fs_inode *inode = inodes+inum;
+
+    if(S_ISDIR(inode->mode)) {
+        return -EISDIR;
+    }
+
+    if(offset > len) return -EINVAL;
+
+    int numBlocks = DIV_ROUND_UP(len, FS_BLOCK_SIZE);
+    char *placeholder = malloc(FS_BLOCK_SIZE);
+    char *loop = strdup(buf);
+    char *looph = loop;
+    loop += offset;
+    int plen = len;
+    memset(placeholder, 0, FS_BLOCK_SIZE);
+    int blockptr;
+    for(int i = 0; i < numBlocks; i++) {
+        blockptr = find_free();
+        *((inode->ptrs)+i) = blockptr;
+        bit_set(block_bitmap, blockptr);
+        if(plen < FS_BLOCK_SIZE) {
+            memcpy(placeholder, loop, plen);
+            plen -= plen;
+        } else {
+            memcpy(placeholder, loop, FS_BLOCK_SIZE);
+            plen -= FS_BLOCK_SIZE;
+        }
+        block_write(placeholder, blockptr, 1);
+        memset(placeholder, 0, FS_BLOCK_SIZE);
+        block_read(placeholder, blockptr, 1);
+        memset(placeholder, 0, FS_BLOCK_SIZE);
+        loop = loop+FS_BLOCK_SIZE;
+    }
+    block_write(inode, inum, 1);
+    block_write(block_bitmap, 1, 1);
+    free(looph);
+    free(placeholder);
+    return len - plen;
 }
 
 /* statfs - get file system statistics
