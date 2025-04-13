@@ -601,9 +601,6 @@ int fs_rmdir(const char *path)
         if(!empty) {
             return -ENOTEMPTY;
         }
-
-        // check if dir is not empty??
-        // how do i implement this??
     
         // find parent dir
         char *pathd = strdup(path);
