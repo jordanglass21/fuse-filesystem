@@ -212,6 +212,31 @@ int find_free() {
     return -ENOSPC;
 }
 
+int dir_empty(struct fs_inode *inode)
+{
+    for (int i = 0; i < 6; i++) {
+        int block = inode->ptrs[i];
+        if (block == 0) {
+            continue;
+        }
+        struct fs_dirent *entries = malloc(sizeof(struct fs_dirent) * 128);
+        if (entries == NULL) {
+            return -1; 
+        }
+        block_read(entries, block, 1);
+
+        for (int j = 0; j < 128; j++) {
+            if (entries[j].valid) {
+                free(entries);
+                return 0;
+            }
+        }
+
+        free(entries);
+    }
+    return 1;
+}
+
 /* init - this is called once by the FUSE framework at startup. Ignore
  * the 'conn' argument.
  * recommended actions:
@@ -501,10 +526,10 @@ int fs_unlink(const char *path)
 
     printf("parent: %d\n", parent);
     if (parent < 0) {
-        // for (int i = 0; i < MAX_PATH_LEN; i++) {
-        //     free(argv[i]);
-        // }
-        // free(argv);
+        for (int i = 0; i < MAX_PATH_LEN; i++) {
+            free(argv[i]);
+        }
+        free(argv);
         return -ENOENT;
     } else if (parent < 2) {
         parent = 2;
@@ -544,15 +569,14 @@ int fs_unlink(const char *path)
     // write  updates
     block_write(inodes, 1, 1);
 
-    // free memory
-    // for (int i = 0; i < pathd; i++) {
-    //     if(argv[i] != NULL) {
-    //         free(argv[i]);
-    //         argv[i] = NULL;
-    //     }
-    // }
-    // free(argv);
-    // argv = NULL;
+    //free memory
+    for (int i = 0; i < MAX_PATH_LEN; i++) {
+        if(argv[i] != NULL) {
+            free(argv[i]);
+            argv[i] = NULL;
+        }
+    }
+    free(argv);
 
     return 0; // success
 }
@@ -563,8 +587,102 @@ int fs_unlink(const char *path)
  */
 int fs_rmdir(const char *path)
 {
-    /* your code here */
-    return -EOPNOTSUPP;
+        // get inode number
+        char *paths = strdup(path);
+        int inum_source = get_inum(paths);
+        if (inum_source < 0) {
+            return -ENOENT;
+        }
+    
+        // get inode
+        struct fs_inode *inode = inodes+inum_source;
+    
+        if (!((inode->mode & __S_IFMT) == __S_IFDIR)) {
+            // if its not a dir
+            return -ENOTDIR;
+        }
+
+        int empty = dir_empty(inode);
+
+        if(!empty) {
+            return -ENOTEMPTY;
+        }
+
+        // check if dir is not empty??
+        // how do i implement this??
+    
+        // find parent dir
+        char *pathd = strdup(path);
+        char **argv = malloc(MAX_PATH_LEN * sizeof(char *));
+        for (int i = 0; i < MAX_PATH_LEN; i++) {
+            argv[i] = malloc(MAX_NAME_LEN);
+        }
+    
+        int pathc = parse2(pathd, argv);
+        free(pathd);
+    
+        int parent;
+        if (pathc == 1) {
+            parent = 2; // parent dir is the root
+        } else {
+            parent = translate(pathc - 1, argv); // get the parent dir
+        }
+    
+        printf("parent: %d\n", parent);
+        if (parent < 0) {
+            for (int i = 0; i < MAX_PATH_LEN; i++) {
+                free(argv[i]);
+            }
+            free(argv);
+            return -ENOENT;
+        } else if (parent < 2) {
+            parent = 2;
+        }
+    
+        // read in parent dir 
+        struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * 128);
+        block_read(dirent, (inodes+parent)->ptrs[0], 1);
+    
+        printf("dir: %s\n", dirent->name);
+        printf("parent: %d\n", parent);
+    
+        // do the delete
+        for (int i = 0; i < 128; i++) {
+            if (dirent[i].valid && dirent[i].inode == inum_source) {
+                dirent[i].valid = 0;
+                memset(dirent[i].name, 0, MAX_NAME_LEN);
+                break;
+            }
+        }
+    
+        // write to mem
+        block_write(dirent, (inodes+parent)->ptrs[0], 1);
+        free(dirent);
+    
+        // free data blocks
+        for (int i = 0; i < 6; i++) {
+            int block = inode->ptrs[i];
+            if (block != 0) {
+                bit_clear(block_bitmap, block);
+            }
+        }
+    
+        // clear inode
+        memset(inode, 0, sizeof(struct fs_inode));
+    
+        // write  updates
+        block_write(inodes, 1, 1);
+    
+        //free memory
+        for (int i = 0; i < MAX_PATH_LEN; i++) {
+            if(argv[i] != NULL) {
+                free(argv[i]);
+                argv[i] = NULL;
+            }
+        }
+        free(argv);
+    
+        return 0; // success
 }
 
 /* rename - rename a file or directory
