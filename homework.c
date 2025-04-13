@@ -100,17 +100,20 @@ void process_init_read_in(struct fs_dirent * dir) {
 }
 
 int parse(char *path, char **argv) {
-    // int i =0;
-    // for (i = 0; i < MAX_PATH_LEN; i++) {
-    //     if ((argv[i] = strtok(path, "/")) == NULL)
-    //         break;
-    //     if (strlen(argv[i]) > MAX_NAME_LEN)
-    //         argv[i][MAX_NAME_LEN] = '\0';
-    //     else
-    //         argv[i][strlen(argv[i])] = '\0'; 
-    //     path = NULL;
-    // }
-    // return i;
+    int i =0;
+    for (i = 0; i < MAX_PATH_LEN; i++) {
+        if ((argv[i] = strtok(path, "/")) == NULL)
+            break;
+        if (strlen(argv[i]) > MAX_NAME_LEN)
+            argv[i][MAX_NAME_LEN] = '\0';
+        else
+            argv[i][strlen(argv[i])] = '\0'; 
+        path = NULL;
+    }
+    return i;
+}
+
+int parse2(char *path, char **argv) {
 
     char *token = strtok(path, "/");
 
@@ -119,7 +122,7 @@ int parse(char *path, char **argv) {
             return i;
         }
         argv[i] = malloc(MAX_NAME_LEN);
-        strncpy(argv[i], token, MAX_NAME_LEN - 1);
+        strncpy(argv[i], token, MAX_NAME_LEN-1);
 
         token = strtok(NULL, "/");
     }
@@ -464,8 +467,7 @@ int fs_mkdir(const char *path, mode_t mode)
  */
 int fs_unlink(const char *path)
 {
-    printf("path: %s\n", path);
-    // if src does not exist
+    // get inode number
     char *paths = strdup(path);
     int inum_source = get_inum(paths);
     if (inum_source < 0) {
@@ -473,7 +475,7 @@ int fs_unlink(const char *path)
     }
 
     // get inode
-    struct fs_inode *inode = &inodes[inum_source];
+    struct fs_inode *inode = inodes+inum_source;
 
     if ((inode->mode & __S_IFMT) == __S_IFDIR) {
         // if its a dir
@@ -487,7 +489,7 @@ int fs_unlink(const char *path)
         argv[i] = malloc(MAX_NAME_LEN);
     }
 
-    int pathc = parse(pathd, argv);
+    int pathc = parse2(pathd, argv);
     free(pathd);
 
     int parent;
