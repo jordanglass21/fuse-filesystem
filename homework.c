@@ -100,24 +100,40 @@ void process_init_read_in(struct fs_dirent * dir) {
 }
 
 int parse(char *path, char **argv) {
-    int i;
-    for (i = 0; i < MAX_PATH_LEN; i++) {
-        if ((argv[i] = strtok(path, "/")) == NULL)
-            break;
-        if (strlen(argv[i]) > MAX_NAME_LEN)
-            argv[i][MAX_NAME_LEN] = '\0';
-        else
-            argv[i][strlen(argv[i])] = '\0'; 
-        path = NULL;
+    // int i =0;
+    // for (i = 0; i < MAX_PATH_LEN; i++) {
+    //     if ((argv[i] = strtok(path, "/")) == NULL)
+    //         break;
+    //     if (strlen(argv[i]) > MAX_NAME_LEN)
+    //         argv[i][MAX_NAME_LEN] = '\0';
+    //     else
+    //         argv[i][strlen(argv[i])] = '\0'; 
+    //     path = NULL;
+    // }
+    // return i;
+
+    char *token = strtok(path, "/");
+
+    for (int i = 0; i < MAX_PATH_LEN; i++) {
+        if (token == NULL) {
+            return i;
+        }
+        argv[i] = malloc(MAX_NAME_LEN);
+        strncpy(argv[i], token, MAX_NAME_LEN - 1);
+
+        token = strtok(NULL, "/");
     }
-    return i;
+
+    return MAX_PATH_LEN;
 }
 
 int translate(int pathc, char **pathv) {
+    printf("pathc: %d\n", pathc);
     int inum = 2;
     int inode_found = 0;
     struct fs_dirent *dir = malloc(4096);
     for(int i = 0; i < pathc; i++) {
+        printf("translate looking for: %s\n", pathv[i]);
         inode_found = 0;
         if(!S_ISDIR((inodes+inum)->mode)) {
             return -ENOTDIR;
@@ -448,18 +464,9 @@ int fs_mkdir(const char *path, mode_t mode)
  */
 int fs_unlink(const char *path)
 {
-
-    char *modified_path;
-    if (path[0] != '/') {
-        modified_path = malloc(strlen(path) + 2);
-        sprintf(modified_path, "/%s", path);
-    } else {
-        modified_path = strdup(path);
-    }
-
     printf("path: %s\n", path);
     // if src does not exist
-    char *paths = strdup(modified_path);
+    char *paths = strdup(path);
     int inum_source = get_inum(paths);
     if (inum_source < 0) {
         return -ENOENT;
@@ -474,36 +481,28 @@ int fs_unlink(const char *path)
     }
 
     // find parent dir
-    char *path_parse = strdup(path);
+    char *pathd = strdup(path);
     char **argv = malloc(MAX_PATH_LEN * sizeof(char *));
     for (int i = 0; i < MAX_PATH_LEN; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
-        if(argv[i] == NULL) {
-            return -ENOENT;
-        }
     }
 
-    int pathd = parse(path_parse, argv);
-    free(path_parse);
-
-    for (int i = pathd; i < MAX_PATH_LEN; i++) {
-        argv[i] = NULL;
-    }
+    int pathc = parse(pathd, argv);
+    free(pathd);
 
     int parent;
-    if (pathd == 1) {
+    if (pathc == 1) {
         parent = 2; // parent dir is the root
     } else {
-        parent = translate(pathd - 1, argv); // get the parent dir
+        parent = translate(pathc - 1, argv); // get the parent dir
     }
 
     printf("parent: %d\n", parent);
     if (parent < 0) {
-        for (int i = 0; i < pathd; i++) {
-            free(argv[i]);
-        }
-        free(argv);
-        
+        // for (int i = 0; i < MAX_PATH_LEN; i++) {
+        //     free(argv[i]);
+        // }
+        // free(argv);
         return -ENOENT;
     } else if (parent < 2) {
         parent = 2;
