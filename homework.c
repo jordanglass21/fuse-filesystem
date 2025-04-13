@@ -114,19 +114,15 @@ int parse(char *path, char **argv) {
 }
 
 int parse2(char *path, char **argv) {
-
     char *token = strtok(path, "/");
-
     for (int i = 0; i < MAX_PATH_LEN; i++) {
         if (token == NULL) {
             return i;
         }
         argv[i] = malloc(MAX_NAME_LEN);
         strncpy(argv[i], token, MAX_NAME_LEN-1);
-
         token = strtok(NULL, "/");
     }
-
     return MAX_PATH_LEN;
 }
 
@@ -212,17 +208,13 @@ int find_free() {
     return -ENOSPC;
 }
 
-int dir_empty(struct fs_inode *inode)
-{
+int dir_empty(struct fs_inode *inode) {
     for (int i = 0; i < 6; i++) {
         int block = inode->ptrs[i];
         if (block == 0) {
             continue;
         }
         struct fs_dirent *entries = malloc(sizeof(struct fs_dirent) * 128);
-        if (entries == NULL) {
-            return -1; 
-        }
         block_read(entries, block, 1);
 
         for (int j = 0; j < 128; j++) {
@@ -799,14 +791,44 @@ int fs_utime(const char *path, struct utimbuf *ut)
  */
 int fs_truncate(const char *path, off_t len)
 {
-    /* you can cheat by only implementing this for the case of len==0,
-     * and an error otherwise.
-     */
-    if (len != 0)
-	return -EINVAL;		/* invalid argument */
+    if (len != 0) {
+        return -EINVAL;
+    }
 
-    /* your code here */
-    return -EOPNOTSUPP;
+    // get inode number
+    char *paths = strdup(path);
+    int inum_source = get_inum(paths);
+    if (inum_source < 0) {
+        return -ENOENT;
+    }
+
+    // get inode
+    struct fs_inode *inode = inodes+inum_source;
+
+    if (inode == NULL) {
+        return -ENOENT; // inode does not exist
+    }
+
+    if ((inode->mode & __S_IFMT) == __S_IFDIR) {
+        // if its a dir
+        return -EISDIR;
+    }
+
+    // free blocks
+    for (int i = 0; i < 6; i++) {
+        if (inode->ptrs[i] == 0) {
+            continue;
+        }
+        inode->ptrs[i] = 0;
+    }
+
+    // set metadata
+    inode->size = 0;
+    inode->mtime = time(NULL);
+
+    block_write(inode, inum_source, 1);
+
+    return 0; // Success
 }
 
 
