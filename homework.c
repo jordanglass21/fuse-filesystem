@@ -889,6 +889,7 @@ int fs_write(const char *path, const char *buf, size_t len,
 	     off_t offset, struct fuse_file_info *fi)
 {
     /* your code here */
+    printf("Write length: %ld\n", len);
     int inum = get_inum(strdup(path));
     if(inum < 0) return inum;
 
@@ -898,37 +899,63 @@ int fs_write(const char *path, const char *buf, size_t len,
         return -EISDIR;
     }
 
-    if(offset > len) return -EINVAL;
+    if(offset > inode->size) return -EINVAL;
 
     int numBlocks = DIV_ROUND_UP(len, FS_BLOCK_SIZE);
-    char *placeholder = malloc(FS_BLOCK_SIZE);
+    char *buffer = malloc(FS_BLOCK_SIZE);
     char *loop = strdup(buf);
-    char *looph = loop;
-    loop += offset;
+    char *loop_inv = loop;
     int plen = len;
-    memset(placeholder, 0, FS_BLOCK_SIZE);
+    
+
     int blockptr;
-    for(int i = 0; i < numBlocks; i++) {
-        blockptr = find_free();
-        *((inode->ptrs)+i) = blockptr;
-        bit_set(block_bitmap, blockptr);
-        if(plen < FS_BLOCK_SIZE) {
-            memcpy(placeholder, loop, plen);
-            plen -= plen;
-        } else {
-            memcpy(placeholder, loop, FS_BLOCK_SIZE);
-            plen -= FS_BLOCK_SIZE;
+    int sizeComp = 0;
+    for(int i = 0; i < 1019; i++) {
+        if (inode->ptrs[i] == 0 && i >= numBlocks) {
+            break;
+        } else if (inode->ptrs[i] == 0 && i < numBlocks) {
+            blockptr = find_free();
+            bit_set(block_bitmap, blockptr);
+            inode->ptrs[i] = blockptr;
+        } else if (inode->ptrs[i] != 0 && i < numBlocks) {
+            blockptr = inode->ptrs[i];
+        } else if (inode->ptrs[i] != 0 && i >= numBlocks) {
+            bit_clear(block_bitmap, blockptr);
+            inodes->ptrs[i] = 0;
+            continue;
         }
-        block_write(placeholder, blockptr, 1);
-        memset(placeholder, 0, FS_BLOCK_SIZE);
-        block_read(placeholder, blockptr, 1);
-        memset(placeholder, 0, FS_BLOCK_SIZE);
-        loop = loop+FS_BLOCK_SIZE;
+        int rStart = i*4096, rEnd = (i+1)*4096;
+        int lpos = offset - rStart;
+        int rpos = rEnd - lpos;
+        if(lpos >= 0 && rpos < FS_BLOCK_SIZE && plen > rpos) {
+            block_read(buffer, blockptr, 1);
+            memcpy(buffer+lpos, loop, rpos);
+            block_write(buffer, blockptr, 1);
+            loop += rpos;
+            plen -= rpos;
+            sizeComp += 4096;
+        } else if(lpos >= 0 && plen <= rpos) {
+            block_read(buffer, blockptr, 1);
+            memset(buffer, 0, FS_BLOCK_SIZE);
+            memcpy(buffer+lpos, loop, plen);
+            block_write(buffer, blockptr, 1);
+            loop += plen;
+            sizeComp += plen;
+            plen -= plen;
+            break;
+        } else {
+            block_read(buffer, blockptr, 1);
+            memcpy(buffer, loop, rpos);
+            block_write(buffer, blockptr, 1);
+            loop += rpos;
+            plen -= rpos;
+            sizeComp += 4096;
+        }
     }
+    inode->size = sizeComp;
     block_write(inode, inum, 1);
     block_write(block_bitmap, 1, 1);
-    free(looph);
-    free(placeholder);
+    free(loop_inv);
     return len - plen;
 }
 
