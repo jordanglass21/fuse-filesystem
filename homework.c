@@ -156,7 +156,7 @@ int translate(int pathc, char **pathv) {
 
     free(dir);
 
-    if(inode_found == 1) { // so now we return the deeply nested inode here
+    if(inode_found == 1 || pathc == 0) { // so now we return the deeply nested inode here
         return inum;
     }
 
@@ -450,7 +450,7 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     block_write(fsi, nInum, 1);
     block_write(inodes+(dirInum), dirInum, 1);
     block_write(dir, *((inodes+dirInum)->ptrs), 1);
-
+    block_write(block_bitmap, 1, 1);
     return 0;
 }
 
@@ -480,8 +480,8 @@ int fs_mkdir(const char *path, mode_t mode)
     nInode->ctime=time(NULL);
     nInode->mtime=time(NULL);
     nInode->size=4096;
-    block_write(block_bitmap, 1, 1);
     block_write(nInode,get_inum(strdup(path)), 1);
+    block_write(block_bitmap, 1, 1);
     return err;
 }
 
@@ -565,9 +565,11 @@ int fs_unlink(const char *path)
 
     // clear inode
     memset(inode, 0, sizeof(struct fs_inode));
+    bit_clear(block_bitmap, inum_source);
 
     // write  updates
-    block_write(inodes, 1, 1);
+    block_write(inodes, inum_source, 1);
+    block_write(block_bitmap, 1, 1);
 
     //free memory
     for (int i = 0; i < MAX_PATH_LEN; i++) {
