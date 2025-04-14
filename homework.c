@@ -941,7 +941,7 @@ int fs_write(const char *path, const char *buf, size_t len,
             memcpy(buffer+lpos, loop, plen);
             block_write(buffer, blockptr, 1);
             loop += plen;
-            sizeComp += plen;
+            sizeComp += lpos + plen;
             plen -= plen;
             continue;
         } else if(inRange) {
