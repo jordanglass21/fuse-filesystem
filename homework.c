@@ -816,6 +816,7 @@ int fs_truncate(const char *path, off_t len)
         if (inode->ptrs[i] == 0) {
             continue;
         }
+        bit_clear(block_bitmap, inode->ptrs[i]);
         inode->ptrs[i] = 0;
     }
 
