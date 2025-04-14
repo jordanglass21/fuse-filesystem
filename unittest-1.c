@@ -387,6 +387,62 @@ START_TEST(read_file_file8k) {
     ck_assert_int_eq(1217760297, crc32(crc, (const Bytef *)buf, bRead));
 } END_TEST
 
+START_TEST(read_dir_with_long_name_file12k) {
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir-with-long-name/file.12k+", buf, 12289, 0, NULL);
+    ck_assert_int_eq(12289, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(2781093465, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir2_twenty_seven_byte_file_name) {
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir2/twenty-seven-byte-file-name", buf, 1000, 0, NULL);
+    ck_assert_int_eq(1000, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(2902524398, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir2_file4k) {
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir2/file.4k+", buf, 4098, 0, NULL);
+    ck_assert_int_eq(4098, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1626046637, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_subdir_file4k) {
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir3/subdir/file.4k-", buf, 4095, 0, NULL);
+    ck_assert_int_eq(4095, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(2991486384, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_subdir_file8k) {
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir3/subdir/file.8k-", buf, 8190, 0, NULL);
+    ck_assert_int_eq(8190, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(724101859, crc32(crc, (const Bytef *)buf, bRead));
+} 
+
+START_TEST(dir3_subdir_file12k) {
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir3/subdir/file.12k", buf, 12288, 0, NULL);
+    ck_assert_int_eq(12288, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1483119748, crc32(crc, (const Bytef *)buf, bRead));
+} 
+
+START_TEST(dir3_file12k) {
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir3/file.12k-", buf, 12287, 0, NULL);
+    ck_assert_int_eq(12287, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+} 
+
 void get_attr_tests(TCase *tc){
     tcase_add_test(tc, root);
     tcase_add_test(tc, file1k);
@@ -423,6 +479,14 @@ void read_tests(TCase *tc) {
     tcase_add_test(tc, read_file_file10);
     tcase_add_test(tc, read_file_file1k);
     tcase_add_test(tc, read_file_file8k);
+    tcase_add_test(tc, read_dir_with_long_name_file12k);
+    tcase_add_test(tc, dir2_twenty_seven_byte_file_name);
+    tcase_add_test(tc, dir2_file4k);
+    tcase_add_test(tc, dir3_subdir_file4k);
+    tcase_add_test(tc, dir3_subdir_file8k);
+    tcase_add_test(tc, dir3_subdir_file12k);
+    tcase_add_test(tc, dir3_file12k);
+    
 }
 
 int main(int argc, char **argv)
