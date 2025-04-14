@@ -980,7 +980,7 @@ int fs_statfs(const char *path, struct statvfs *st)
      */
 
     st->f_bsize = FS_BLOCK_SIZE;
-    st->f_blocks = super_block->disk_size - 2; 
+    st->f_blocks = super_block->disk_size; 
     st->f_bfree =  st->f_blocks - get_used_blocks();
     st->f_bavail = st->f_bfree;
     st->f_namemax = MAX_NAME_LEN;
