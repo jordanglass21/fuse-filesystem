@@ -901,7 +901,7 @@ int fs_write(const char *path, const char *buf, size_t len,
 
     if(offset > inode->size) return -EINVAL;
 
-    int numBlocks = DIV_ROUND_UP(len, FS_BLOCK_SIZE);
+    int numBlocks = DIV_ROUND_UP(len+offset, FS_BLOCK_SIZE);
     char *buffer = malloc(FS_BLOCK_SIZE);
     char *loop = strdup(buf);
     char *loop_inv = loop;
@@ -925,34 +925,36 @@ int fs_write(const char *path, const char *buf, size_t len,
             continue;
         }
         int rStart = i*4096, rEnd = (i+1)*4096;
+        int inRange = rEnd >= offset;
         int lpos = offset - rStart;
         int rpos = rEnd - lpos;
-        if(lpos >= 0 && rpos < FS_BLOCK_SIZE && plen > rpos) {
+        if( inRange && lpos >= 0 
+            && rpos < FS_BLOCK_SIZE && plen >= rpos) {
             block_read(buffer, blockptr, 1);
             memcpy(buffer+lpos, loop, rpos);
             block_write(buffer, blockptr, 1);
             loop += rpos;
             plen -= rpos;
-            sizeComp += 4096;
-        } else if(lpos >= 0 && plen <= rpos) {
+        } else if(inRange && lpos >= 0 && plen < rpos) {
             block_read(buffer, blockptr, 1);
-            memset(buffer, 0, FS_BLOCK_SIZE);
+            memset(buffer+lpos, 0, FS_BLOCK_SIZE-lpos);
             memcpy(buffer+lpos, loop, plen);
             block_write(buffer, blockptr, 1);
             loop += plen;
             sizeComp += plen;
             plen -= plen;
-            break;
-        } else {
+            continue;
+        } else if(inRange) {
             block_read(buffer, blockptr, 1);
             memcpy(buffer, loop, rpos);
             block_write(buffer, blockptr, 1);
             loop += rpos;
             plen -= rpos;
-            sizeComp += 4096;
         }
+        sizeComp+=4096;
     }
     inode->size = sizeComp;
+    inode->mtime = time(NULL);
     block_write(inode, inum, 1);
     block_write(block_bitmap, 1, 1);
     free(loop_inv);
