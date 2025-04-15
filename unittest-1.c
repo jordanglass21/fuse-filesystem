@@ -7,6 +7,7 @@
 #define FUSE_USE_VERSION 26
 #define MAX_PATH_LEN 10
 #define MAX_NAME_LEN 28
+#define MAX_DIR_ENTS 128
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,9 +29,7 @@ int empty_filler(void *ptr, const char *name, const struct stat *stbuf,
      * with the attributes. Ignore the 'ptr' and 'off' arguments 
      * 
      */
-    if(strcmp(".", name) != 0 && strcmp("..", name) != 0) {
-        strcpy(*(argv+(entry++)), name);
-    }
+    strcpy(*(argv+(entry++)), name);
     return 0;
 }
 
@@ -263,9 +262,9 @@ int compFunc(const void *a, const void *b) {
 
 START_TEST(read_root) {
     //"dir2", "dir3", "dir-with-long-name", "file.10","file.1k", "file.8k+"
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"dir-with-long-name", "dir2", "dir3", "file.10", "file.1k", "file.8k+"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "dir-with-long-name", "dir2", "dir3", "file.10", "file.1k", "file.8k+"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -275,15 +274,15 @@ START_TEST(read_root) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
 } END_TEST
 
 START_TEST(read_dir2) {
     //"twenty-seven-byte-file-name", "file.4k+"
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.4k+", "twenty-seven-byte-file-name"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "file.4k+", "twenty-seven-byte-file-name"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -293,15 +292,15 @@ START_TEST(read_dir2) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
 } END_TEST
 
 START_TEST(read_dir3) {
     //"subdir", "file.12k-"
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.12k-", "subdir"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "file.12k-", "subdir"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -311,15 +310,15 @@ START_TEST(read_dir3) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
 } END_TEST
 
 START_TEST(read_dir3_subdir) {
     //"file.4k-", "file.8k-", "file.12k"
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.12k", "file.4k-", "file.8k-"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "file.12k", "file.4k-", "file.8k-"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -329,15 +328,15 @@ START_TEST(read_dir3_subdir) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
 } END_TEST
 
 START_TEST(read_dir_long) {
     //"file.12k+"
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.12k+"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "file.12k+"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -347,7 +346,7 @@ START_TEST(read_dir_long) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
 } END_TEST
 
@@ -369,6 +368,7 @@ START_TEST(read_file_file10) {
     ck_assert_int_eq(10, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(3766980606, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(read_file_file1k) {
@@ -377,6 +377,7 @@ START_TEST(read_file_file1k) {
     ck_assert_int_eq(1000, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1726121896, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(read_file_file8k) {
@@ -385,6 +386,7 @@ START_TEST(read_file_file8k) {
     ck_assert_int_eq(8195, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1217760297, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(read_dir_with_long_name_file12k) {
@@ -393,6 +395,7 @@ START_TEST(read_dir_with_long_name_file12k) {
     ck_assert_int_eq(12289, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(2781093465, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir2_twenty_seven_byte_file_name) {
@@ -401,6 +404,7 @@ START_TEST(dir2_twenty_seven_byte_file_name) {
     ck_assert_int_eq(1000, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(2902524398, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir2_file4k) {
@@ -409,6 +413,7 @@ START_TEST(dir2_file4k) {
     ck_assert_int_eq(4098, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1626046637, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_subdir_file4k) {
@@ -417,6 +422,7 @@ START_TEST(dir3_subdir_file4k) {
     ck_assert_int_eq(4095, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(2991486384, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_subdir_file8k) {
@@ -425,6 +431,7 @@ START_TEST(dir3_subdir_file8k) {
     ck_assert_int_eq(8190, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(724101859, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_subdir_file12k) {
@@ -433,6 +440,7 @@ START_TEST(dir3_subdir_file12k) {
     ck_assert_int_eq(12288, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1483119748, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_file12k) {
@@ -441,6 +449,7 @@ START_TEST(dir3_file12k) {
     ck_assert_int_eq(12287, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 /* Stats */
@@ -477,6 +486,7 @@ START_TEST(dir3_file12k_small_10) {
     ck_assert_int_eq(12287, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_file12k_small_17) {
@@ -489,6 +499,7 @@ START_TEST(dir3_file12k_small_17) {
     ck_assert_int_eq(1000, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1726121896, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_file12k_small_100) {
@@ -501,6 +512,7 @@ START_TEST(dir3_file12k_small_100) {
     ck_assert_int_eq(12289, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(2781093465, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_file12k_small_1000) {
@@ -513,6 +525,7 @@ START_TEST(dir3_file12k_small_1000) {
     ck_assert_int_eq(1000, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(2902524398, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_file12k_small_1024) {
@@ -525,6 +538,7 @@ START_TEST(dir3_file12k_small_1024) {
     ck_assert_int_eq(4098, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1626046637, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_file12k_small_1970) {
@@ -537,6 +551,7 @@ START_TEST(dir3_file12k_small_1970) {
     ck_assert_int_eq(12288, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1483119748, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(dir3_file12k_small_3000) {
@@ -549,6 +564,7 @@ START_TEST(dir3_file12k_small_3000) {
     ck_assert_int_eq(12287, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+    free(buf);
 } END_TEST
 
 START_TEST(chmod_file) {
@@ -557,6 +573,7 @@ START_TEST(chmod_file) {
     fs_ops.getattr("/dir3/file.12k-", st);
     ck_assert_int_eq(__S_IFREG | 0000, st->st_mode);
     ck_assert_int_eq(1, S_ISREG(st->st_mode));
+    free(st);
 } END_TEST
 
 START_TEST(chmod_file_2) {
@@ -565,6 +582,7 @@ START_TEST(chmod_file_2) {
     fs_ops.getattr("/file.1k", st);
     ck_assert_int_eq(__S_IFREG | 0760, st->st_mode);
     ck_assert_int_eq(1, S_ISREG(st->st_mode));
+    free(st);
 } END_TEST
 
 START_TEST(chmod_dir_1) {
@@ -573,6 +591,7 @@ START_TEST(chmod_dir_1) {
     fs_ops.getattr("/dir2", st);
     ck_assert_int_eq(__S_IFDIR | 0764, st->st_mode);
     ck_assert_int_eq(1, S_ISDIR(st->st_mode));
+    free(st);
 } END_TEST
 
 START_TEST(chmod_dir_2) {
@@ -581,6 +600,7 @@ START_TEST(chmod_dir_2) {
     fs_ops.getattr("/dir3/subdir", st);
     ck_assert_int_eq(__S_IFDIR | 0640, st->st_mode);
     ck_assert_int_eq(1, S_ISDIR(st->st_mode));
+    free(st);
 } END_TEST
 
 
@@ -596,6 +616,7 @@ START_TEST(rename_file_1) {
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
     fs_ops.rename("/dir3/file.12kminus", "/dir3/file.12k-");
+    free(buf);
 } END_TEST
 
 START_TEST(rename_file_2) {
@@ -606,6 +627,7 @@ START_TEST(rename_file_2) {
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1726121896, crc32(crc, (const Bytef *)buf, bRead));
     fs_ops.rename("/file.thousand", "/file.1k");
+    free(buf);
 } END_TEST
 
 START_TEST(rename_file_3) {
@@ -616,15 +638,16 @@ START_TEST(rename_file_3) {
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(724101859, crc32(crc, (const Bytef *)buf, bRead));
     fs_ops.rename("/dir3/subdir/file.eightk-", "/dir3/subdir/file.8k-");
+    free(buf);
 } END_TEST
 
 //rename dir
 
 START_TEST(rename_dir_1) {
     fs_ops.rename("/dir3", "/dirThree");
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.12k-", "subdir"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "file.12k-", "subdir"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -634,16 +657,16 @@ START_TEST(rename_dir_1) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
     fs_ops.rename("/dirThree", "/dir3");
 } END_TEST
 
 START_TEST(rename_dir_2) {
     fs_ops.rename("/dir3/subdir", "/dir3/subdirectory");
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.12k", "file.4k-", "file.8k-"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "file.12k", "file.4k-", "file.8k-"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -653,15 +676,15 @@ START_TEST(rename_dir_2) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
 } END_TEST
 
 START_TEST(rename_dir_3) {
     fs_ops.rename("/dir-with-long-name", "/dir-short");
-    argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.12k+"};
-    for(int i = 0; i < MAX_PATH_LEN; i++) {
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    char *sorted_names[] = {".", "..", "file.12k+"};
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
     entry = 0;
@@ -671,7 +694,7 @@ START_TEST(rename_dir_3) {
     for(int i = 0; i < entry; i++) {
         ck_assert_str_eq(sorted_names[i], argv[i]);
     }
-    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    for(int i = 0; i < MAX_DIR_ENTS; i++) free(argv[i]);
     free(argv);
 } END_TEST
 

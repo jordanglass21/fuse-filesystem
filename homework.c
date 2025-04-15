@@ -135,6 +135,7 @@ int translate(int pathc, char **pathv) {
         printf("translate looking for: %s\n", pathv[i]);
         inode_found = 0;
         if(!S_ISDIR((inodes+inum)->mode)) {
+            free(dir);
             return -ENOTDIR;
         }
 
@@ -209,7 +210,7 @@ int find_free() {
 }
 
 int dir_empty(struct fs_inode *inode) {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 1019; i++) {
         int block = inode->ptrs[i];
         if (block == 0) {
             continue;
@@ -385,6 +386,9 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
             filler(ptr, ent->name, sb, 0);
         }
     }
+    free(sb);
+    free(dirents);
+    free(ino);
     return 0;
 }
 
@@ -408,6 +412,8 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     char **pathv = (char **)malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
     int pathc = parse(pathd, pathv);
     int dirInum = translate(pathc-1, pathv);
+
+    if(strlen(*(pathv+(pathc-1))) > MAX_NAME_LEN) return -EINVAL;
     
     if(dirInum < 0) return dirInum;
     int nInum = get_inum(strdup(path));
@@ -443,6 +449,9 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     block_write(inodes+(dirInum), dirInum, 1);
     block_write(dir, *((inodes+dirInum)->ptrs), 1);
     block_write(block_bitmap, 1, 1);
+    free(dir);
+    free(pathv);
+    free(pathd);
     return 0;
 }
 
@@ -707,9 +716,10 @@ int fs_rename(const char *src_path, const char *dst_path)
 
     char** argv_source = (char**) malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
     char** argv_dest = (char**) malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
-
-    int pathc_source = parse(strdup(src_path), argv_source);
-    int pathc_dest = parse(strdup(dst_path), argv_dest);
+    char *s_dup = strdup(src_path);
+    char *d_dup = strdup(dst_path);
+    int pathc_source = parse(s_dup, argv_source);
+    int pathc_dest = parse(d_dup, argv_dest);
 
     // if src path does not equal dest path
     if(pathc_source != pathc_dest) {
@@ -726,17 +736,22 @@ int fs_rename(const char *src_path, const char *dst_path)
     int parent_dir_inum = translate(pathc_source-1, argv_source);
     struct fs_dirent *dir = malloc(4096);
     block_read(dir, *((inodes+parent_dir_inum)->ptrs), 1);
-    for(int i = 0; i < 128; i++) {
+    int i = 0;
+    for(; i < 128; i++) {
         if(strcmp((dir+i)->name, *(argv_source+pathc_source-1)) == 0) {
             strcpy((dir+i)->name, *(argv_dest+pathc_dest-1));
             block_write(dir, *((inodes+parent_dir_inum)->ptrs), 1);
             break;
         }
     }
+    struct fs_inode *inode = inodes+((dir+i)->inode);
+    inode->mtime=time(NULL);
+    block_write(inode, (dir+i)->inode, 1);
     free(dir);
     free(argv_source);
     free(argv_dest);
-    // TODO: change last update date
+    free(s_dup);
+    free(d_dup);
     return 0; //success
 }
 
@@ -858,7 +873,7 @@ int fs_read(const char *path, char *buf, size_t len, off_t offset,
 
     char *temp_buf = malloc(FS_BLOCK_SIZE*DIV_ROUND_UP(inode->size, 4096));
     for(int i=0; i < 1019; i++) {
-        if (inode->ptrs[i] == 0) {
+        if (inode->ptrs[i] == 0 || i*4096 > file_len) {
             break;
         }
         block_read(temp_buf+(i*4096), inode->ptrs[i], 1);
