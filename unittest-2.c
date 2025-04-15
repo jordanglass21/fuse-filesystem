@@ -35,6 +35,8 @@ struct fuse_context *fuse_get_context(void)
 // stuff I added
 // #include <fuse/fuse.h>
 
+#include <errno.h>
+
 #define MAX_PATH_LEN 10
 #define MAX_NAME_LEN 28
 #define MAX_DIR_ENTS 128
@@ -567,6 +569,69 @@ START_TEST(create_file_3)
 }
 END_TEST
 
+/* CREATE ERRORS */
+
+// bad path /a/b/c- b doesn’t exist (should return-ENOENT)
+START_TEST(create_error_1)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+
+    // make new file with bad path
+    ck_assert_int_eq(fs_ops.create("/dir1/dirTwo/newFile", F_RWX, FFI), -ENOENT);
+
+    //delete dirs
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
+// bad path /a/b/c- b isn’t directory (ENOTDIR)
+START_TEST(create_error_2)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+
+    // make new file in nested dir
+    ck_assert_int_eq(fs_ops.create("/dir1/file1", F_RWX, FFI), 0);
+
+    // make new in nested file
+    ck_assert_int_eq(fs_ops.create("/dir1/file1/file2", F_RWX, FFI), -ENOTDIR);
+
+    //delete files
+    fs_ops.unlink("/dir1/file1");
+
+    //delete dirs
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
+// bad path /a/b/c- c exists, is file (EEXIST)
+START_TEST(create_error_3)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+
+    // make new file in nested dir
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/file1", F_RWX, FFI), 0);
+
+    // make a file that exists in dir
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/file1", F_RWX, FFI), -EEXIST);
+
+    //delete files
+    fs_ops.unlink("/dir1/dir2/file1");
+
+    //delete dirs
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
+// bad path /a/b/c- c exists, is directory (EEXIST)
+// too-long name (more than 27 characters)
+
 /* UNLINK TESTS */
 
 /* MKDIR TESTS */
@@ -598,6 +663,11 @@ void create_tests(TCase *tc) {
     tcase_add_test(tc, create_file_1);
     tcase_add_test(tc, create_file_2);
     tcase_add_test(tc, create_file_3);
+
+    // errors
+    tcase_add_test(tc, create_error_1);
+    tcase_add_test(tc, create_error_2);
+    tcase_add_test(tc, create_error_3);
 }
 
 void unlink_tests(TCase *tc) {

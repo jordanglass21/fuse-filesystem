@@ -415,7 +415,16 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
     if(strlen(*(pathv+(pathc-1))) > MAX_NAME_LEN) return -EINVAL;
     
+
+    // check if dir exists
     if(dirInum < 0) return dirInum;
+    
+    // check if parent is a dir
+    struct fs_inode *dir_inode = inodes+dirInum;
+    if (!((dir_inode->mode & __S_IFMT) == __S_IFDIR)) {
+        return -ENOTDIR;
+    }
+
     int nInum = get_inum(strdup(path));
     if(nInum > 0) return -EEXIST;
     struct fs_dirent *dir = malloc(128 * sizeof(struct fs_dirent));
