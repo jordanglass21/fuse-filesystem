@@ -49,22 +49,52 @@ int empty_filler(void *ptr, const char *name, const struct stat *stbuf,
  *  fs_ops.read(path, buf, len, offset, NULL);
  *  fs_ops.statfs(path, struct statvfs *sv);
  */
-
 extern struct fuse_operations fs_ops;
 extern void block_init(char *file);
 
+void create_tests(TCase *tc) {
+
+    tcase_add_test(tc, a_test);
+}
+
+void make_dir_tests(TCase *tc) {
+
+    tcase_add_test(tc, a_test);
+}
+
+void unlink_tests(TCase *tc) {
+
+    tcase_add_test(tc, a_test);
+}
+
+void rmdir_tests(TCase *tc) {
+
+    tcase_add_test(tc, a_test);
+}
+
+
 int main(int argc, char **argv)
 {
+    system("python gen-disk.py -q disk2.in test2.img");
     block_init("test2.img");
     fs_ops.init(NULL);
     
     Suite *s = suite_create("fs5600");
     TCase *tc = tcase_create("write_mostly");
+    TCase *mkdir = tcase_create("make_dir");
+    TCase *unlink = tcase_create("unlink");
+    TCase *rmdir = tcase_create("rm_dir");
 
-    tcase_add_test(tc, a_test); /* see START_TEST above */
-    /* add more tests here */
+    create_tests(tc);
+    make_dir_tests(mkdir);
+    unlink_tests(unlink);
+    rmdir_tests(rmdir);
 
     suite_add_tcase(s, tc);
+    suite_add_tcase(s, mkdir);
+    suite_add_tcase(s, unlink);
+    suite_add_tcase(s, rmdir);
+
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     
