@@ -580,6 +580,7 @@ START_TEST(rename_file_2) {
     ck_assert_int_eq(1000, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1726121896, crc32(crc, (const Bytef *)buf, bRead));
+    fs_ops.rename("/file.thousand", "/file.1k");
 } END_TEST
 
 START_TEST(rename_file_3) {
@@ -589,6 +590,7 @@ START_TEST(rename_file_3) {
     ck_assert_int_eq(8190, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(724101859, crc32(crc, (const Bytef *)buf, bRead));
+    fs_ops.rename("/dir3/subdir/file.eightk-", "/dir3/subdir/file.8k-");
 } END_TEST
 
 //rename dir
@@ -609,12 +611,13 @@ START_TEST(rename_dir_1) {
     }
     for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
     free(argv);
+    fs_ops.rename("/dirThree", "/dir3");
 } END_TEST
 
 START_TEST(rename_dir_2) {
     fs_ops.rename("/dir3/subdir", "/dir3/subdirectory");
     argv = malloc(MAX_PATH_LEN * sizeof(char *));
-    char *sorted_names[] = {"file.4k-", "file.8k-", "file.12k"};
+    char *sorted_names[] = {"file.12k", "file.4k-", "file.8k-"};
     for(int i = 0; i < MAX_PATH_LEN; i++) {
         argv[i] = malloc(MAX_NAME_LEN);
     }
