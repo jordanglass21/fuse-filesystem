@@ -39,7 +39,7 @@ struct fuse_context *fuse_get_context(void)
 #define MAX_NAME_LEN 28
 
 extern struct fuse_operations fs_ops;
-mode_t RWX = 0100777;
+mode_t RWX = 0777;
 struct fuse_file_info *FFI;
 
 char **argv;
@@ -136,7 +136,6 @@ START_TEST(create_file_3)
 {
     // create dir
     ck_assert_int_eq(fs_ops.mkdir("/dir1", RWX), 0);
-
     // make new file in nested dir
     ck_assert_int_eq(fs_ops.create("/dir1/newFile", RWX, FFI), 0);
     
@@ -168,6 +167,28 @@ START_TEST(create_file_3)
 }
 END_TEST
 
+START_TEST(create_file_4)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", RWX), 0);
+    // make new file in nested dir
+    ck_assert_int_eq(fs_ops.create("/dir1/newFile", __S_IFREG | RWX, FFI), 0);
+
+    struct stat *st = malloc(sizeof(struct stat));
+    fs_ops.getattr("/dir1", st);
+    ck_assert_int_eq(st->st_mode, (__S_IFDIR | RWX));
+    fs_ops.getattr("/dir1/newFile", st);
+    ck_assert_int_eq(st->st_mode, (__S_IFREG | RWX));
+
+    //delete file and dirs
+    fs_ops.unlink("/dir1/newFile");
+    fs_ops.rmdir("/dir1");
+
+    // free mem
+    free(st);
+}
+END_TEST
+
 /* MKDIR TESTS */
 
 /* UNLINK TESTS */
@@ -182,6 +203,7 @@ void create_tests(TCase *tc) {
     tcase_add_test(tc, create_file_1);
     tcase_add_test(tc, create_file_2);
     tcase_add_test(tc, create_file_3);
+    tcase_add_test(tc, create_file_4);
 }
 
 void make_dir_tests(TCase *tc) {
