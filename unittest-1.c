@@ -564,12 +564,13 @@ START_TEST(chmod_file) {
 // rename file
 
 START_TEST(rename_file_1) {
-    fs_ops.rename("/dir3/file.12k-", "/dir3/file.12k");
+    fs_ops.rename("/dir3/file.12k-", "/dir3/file.12kminus");
     char *buf = malloc(12289);
-    int bRead = fs_ops.read("/dir3/file.12k", buf, 12289, 0, NULL);
+    int bRead = fs_ops.read("/dir3/file.12kminus", buf, 12289, 0, NULL);
     ck_assert_int_eq(12287, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+    fs_ops.rename("/dir3/file.12kminus", "/dir3/file.12k-");
 } END_TEST
 
 START_TEST(rename_file_2) {
