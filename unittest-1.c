@@ -553,11 +553,36 @@ START_TEST(dir3_file12k_small_3000) {
 
 START_TEST(chmod_file) {
     struct stat *st = malloc(sizeof(struct stat));
-    fs_ops.chmod("/dir3/file.12k-", 0100000);
+    fs_ops.chmod("/dir3/file.12k-", __S_IFREG | 0000);
     fs_ops.getattr("/dir3/file.12k-", st);
-    ck_assert_int_eq(0100000, st->st_mode);
+    ck_assert_int_eq(__S_IFREG | 0000, st->st_mode);
     ck_assert_int_eq(1, S_ISREG(st->st_mode));
 } END_TEST
+
+START_TEST(chmod_file_2) {
+    struct stat *st = malloc(sizeof(struct stat));
+    fs_ops.chmod("/file.1k", __S_IFREG | 0760);
+    fs_ops.getattr("/file.1k", st);
+    ck_assert_int_eq(__S_IFREG | 0760, st->st_mode);
+    ck_assert_int_eq(1, S_ISREG(st->st_mode));
+} END_TEST
+
+START_TEST(chmod_dir_1) {
+    struct stat *st = malloc(sizeof(struct stat));
+    fs_ops.chmod("/dir2", __S_IFDIR | 0764);
+    fs_ops.getattr("/dir2", st);
+    ck_assert_int_eq(__S_IFDIR | 0764, st->st_mode);
+    ck_assert_int_eq(1, S_ISDIR(st->st_mode));
+} END_TEST
+
+START_TEST(chmod_dir_2) {
+    struct stat *st = malloc(sizeof(struct stat));
+    fs_ops.chmod("/dir3/subdir", __S_IFDIR | 0640);
+    fs_ops.getattr("/dir3/subdir", st);
+    ck_assert_int_eq(__S_IFDIR | 0640, st->st_mode);
+    ck_assert_int_eq(1, S_ISDIR(st->st_mode));
+} END_TEST
+
 
 /* Renaming */
 
@@ -715,6 +740,9 @@ void read_tests(TCase *tc) {
 void modify_tests(TCase *tc) {
     //chmod
     tcase_add_test(tc, chmod_file);
+    tcase_add_test(tc, chmod_file_2);
+    tcase_add_test(tc, chmod_dir_1);
+    tcase_add_test(tc, chmod_dir_2);
 
     //rename
     tcase_add_test(tc, rename_file_1);
