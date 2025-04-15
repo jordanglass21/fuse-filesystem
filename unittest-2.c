@@ -630,7 +630,41 @@ START_TEST(create_error_3)
 END_TEST
 
 // bad path /a/b/c- c exists, is directory (EEXIST)
+START_TEST(create_error_4)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2/c", D_RWX), 0);
+
+    // make a file that has same name as dir
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/c", F_RWX, FFI), -EEXIST);
+
+    //delete dirs
+    fs_ops.rmdir("/dir1/dir2/c");
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
 // too-long name (more than 27 characters)
+START_TEST(create_error_5)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+
+    // make a file name that is longer than 27 chars (it will be truncated)
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/really-really-really-long-filename", F_RWX, FFI), 0);
+
+    // remove long file name - verifying truncated name
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/really-really-really-long-f"), 0);
+
+    // remove dirs
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
 
 /* UNLINK TESTS */
 
@@ -668,6 +702,8 @@ void create_tests(TCase *tc) {
     tcase_add_test(tc, create_error_1);
     tcase_add_test(tc, create_error_2);
     tcase_add_test(tc, create_error_3);
+    tcase_add_test(tc, create_error_4);
+    tcase_add_test(tc, create_error_5);
 }
 
 void unlink_tests(TCase *tc) {
