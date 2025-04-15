@@ -443,17 +443,7 @@ START_TEST(dir3_file12k) {
     ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
 } END_TEST
 
-START_TEST(dir3_file12k_small_10) {
-    char *buf = malloc(12289);
-    int rSize = 10;
-    int bRead = 0;
-    for(int i = 0; i < 12289; i+=rSize) {
-        bRead += fs_ops.read("/dir3/file.12k-", buf+i, rSize, i, NULL);
-    }
-    ck_assert_int_eq(12287, bRead);
-    uLong crc = crc32(0L, Z_NULL, 0);
-    ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
-} END_TEST
+/* Stats */
 
 START_TEST(fs_statvfs) {
     struct statvfs *st = malloc(sizeof(struct statvfs));
@@ -475,7 +465,91 @@ START_TEST(fs_statvfs2) {
     free(st);
 } END_TEST
 
-//TODO: (test your code with N=17, 100, 1000, 1024, 1970, and 3000) - jordan
+/* Read in chunks */
+
+START_TEST(dir3_file12k_small_10) {
+    char *buf = malloc(12289);
+    int rSize = 10;
+    int bRead = 0;
+    for(int i = 0; i < 12289; i+=rSize) {
+        bRead += fs_ops.read("/dir3/file.12k-", buf+i, rSize, i, NULL);
+    }
+    ck_assert_int_eq(12287, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_file12k_small_17) {
+    char *buf = malloc(12289);
+    int rSize = 17;
+    int bRead = 0;
+    for(int i = 0; i < 12289; i+=rSize) {
+        bRead += fs_ops.read("/file.1k", buf+i, rSize, i, NULL);
+    }
+    ck_assert_int_eq(1000, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1726121896, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_file12k_small_100) {
+    char *buf = malloc(12289);
+    int rSize = 100;
+    int bRead = 0;
+    for(int i = 0; i < 12289; i+=rSize) {
+        bRead += fs_ops.read("/dir-with-long-name/file.12k+", buf+i, rSize, i, NULL);
+    }
+    ck_assert_int_eq(12289, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(2781093465, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_file12k_small_1000) {
+    char *buf = malloc(12289);
+    int rSize = 1000;
+    int bRead = 0;
+    for(int i = 0; i < 12289; i+=rSize) {
+        bRead += fs_ops.read("/dir2/twenty-seven-byte-file-name", buf+i, rSize, i, NULL);
+    }
+    ck_assert_int_eq(1000, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(2902524398, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_file12k_small_1024) {
+    char *buf = malloc(12289);
+    int rSize = 1024;
+    int bRead = 0;
+    for(int i = 0; i < 12289; i+=rSize) {
+        bRead += fs_ops.read("/dir2/file.4k+", buf+i, rSize, i, NULL);
+    }
+    ck_assert_int_eq(4098, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1626046637, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_file12k_small_1970) {
+    char *buf = malloc(12289);
+    int rSize = 1970;
+    int bRead = 0;
+    for(int i = 0; i < 12289; i+=rSize) {
+        bRead += fs_ops.read("/dir3/subdir/file.12k", buf+i, rSize, i, NULL);
+    }
+    ck_assert_int_eq(12288, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1483119748, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(dir3_file12k_small_3000) {
+    char *buf = malloc(12289);
+    int rSize = 3000;
+    int bRead = 0;
+    for(int i = 0; i < 12289; i+=rSize) {
+        bRead += fs_ops.read("/dir3/file.12k-", buf+i, rSize, i, NULL);
+    }
+    ck_assert_int_eq(12287, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
 
 START_TEST(chmod_file) {
     struct stat *st = malloc(sizeof(struct stat));
@@ -485,17 +559,91 @@ START_TEST(chmod_file) {
     ck_assert_int_eq(1, S_ISREG(st->st_mode));
 } END_TEST
 
-// TODO: write more tests for files and also DIRS!!!! - jordan
+/* Renaming */
 
 // rename file
 
-START_TEST(rename_file) {
+START_TEST(rename_file_1) {
     fs_ops.rename("/dir3/file.12k-", "/dir3/file.12k");
     char *buf = malloc(12289);
     int bRead = fs_ops.read("/dir3/file.12k", buf, 12289, 0, NULL);
     ck_assert_int_eq(12287, bRead);
     uLong crc = crc32(0L, Z_NULL, 0);
     ck_assert_int_eq(1203178000, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(rename_file_2) {
+    fs_ops.rename("/file.1k", "/file.thousand");
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/file.thousand", buf, 12289, 0, NULL);
+    ck_assert_int_eq(1000, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(1726121896, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+START_TEST(rename_file_3) {
+    fs_ops.rename("/dir3/subdir/file.8k-", "/dir3/subdir/file.eightk-");
+    char *buf = malloc(12289);
+    int bRead = fs_ops.read("/dir3/subdir/file.eightk-", buf, 12289, 0, NULL);
+    ck_assert_int_eq(8190, bRead);
+    uLong crc = crc32(0L, Z_NULL, 0);
+    ck_assert_int_eq(724101859, crc32(crc, (const Bytef *)buf, bRead));
+} END_TEST
+
+//rename dir
+
+START_TEST(rename_dir_1) {
+    fs_ops.rename("/dir3", "/dirThree");
+    argv = malloc(MAX_PATH_LEN * sizeof(char *));
+    char *sorted_names[] = {"file.12k-", "subdir"};
+    for(int i = 0; i < MAX_PATH_LEN; i++) {
+        argv[i] = malloc(MAX_NAME_LEN);
+    }
+    entry = 0;
+    int err = fs_ops.readdir("/dirThree", NULL, empty_filler, 0, NULL);
+    ck_assert_int_eq(0, err);
+    qsort(argv, entry, sizeof(char *), compFunc);
+    for(int i = 0; i < entry; i++) {
+        ck_assert_str_eq(sorted_names[i], argv[i]);
+    }
+    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    free(argv);
+} END_TEST
+
+START_TEST(rename_dir_2) {
+    fs_ops.rename("/dir3/subdir", "/dir3/subdirectory");
+    argv = malloc(MAX_PATH_LEN * sizeof(char *));
+    char *sorted_names[] = {"file.4k-", "file.8k-", "file.12k"};
+    for(int i = 0; i < MAX_PATH_LEN; i++) {
+        argv[i] = malloc(MAX_NAME_LEN);
+    }
+    entry = 0;
+    int err = fs_ops.readdir("/dir3/subdirectory", NULL, empty_filler, 0, NULL);
+    ck_assert_int_eq(0, err);
+    qsort(argv, entry, sizeof(char *), compFunc);
+    for(int i = 0; i < entry; i++) {
+        ck_assert_str_eq(sorted_names[i], argv[i]);
+    }
+    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    free(argv);
+} END_TEST
+
+START_TEST(rename_dir_3) {
+    fs_ops.rename("/dir-with-long-name", "/dir-short");
+    argv = malloc(MAX_PATH_LEN * sizeof(char *));
+    char *sorted_names[] = {"file.12k+"};
+    for(int i = 0; i < MAX_PATH_LEN; i++) {
+        argv[i] = malloc(MAX_NAME_LEN);
+    }
+    entry = 0;
+    int err = fs_ops.readdir("/dir-short", NULL, empty_filler, 0, NULL);
+    ck_assert_int_eq(0, err);
+    qsort(argv, entry, sizeof(char *), compFunc);
+    for(int i = 0; i < entry; i++) {
+        ck_assert_str_eq(sorted_names[i], argv[i]);
+    }
+    for(int i = 0; i < MAX_PATH_LEN; i++) free(argv[i]);
+    free(argv);
 } END_TEST
 
 // TODO: write more tests for renaming files and also DIRS!!!! - jeff
@@ -547,6 +695,13 @@ void read_tests(TCase *tc) {
 
     //fs_read - multiple small reads
     tcase_add_test(tc, dir3_file12k_small_10);
+    tcase_add_test(tc, dir3_file12k_small_17);
+    tcase_add_test(tc, dir3_file12k_small_100);
+    tcase_add_test(tc, dir3_file12k_small_1000);
+    tcase_add_test(tc, dir3_file12k_small_1024);
+    tcase_add_test(tc, dir3_file12k_small_1970);
+    tcase_add_test(tc, dir3_file12k_small_3000);
+
 
     // fs_statvfs
     tcase_add_test(tc, fs_statvfs);
@@ -556,8 +711,14 @@ void read_tests(TCase *tc) {
 void modify_tests(TCase *tc) {
     //chmod
     tcase_add_test(tc, chmod_file);
+
     //rename
-    tcase_add_test(tc, rename_file);
+    tcase_add_test(tc, rename_file_1);
+    tcase_add_test(tc, rename_file_2);
+    tcase_add_test(tc, rename_file_3);
+    tcase_add_test(tc, rename_dir_1);
+    tcase_add_test(tc, rename_dir_2);
+    tcase_add_test(tc, rename_dir_3);
 }
 
 int main(int argc, char **argv)
