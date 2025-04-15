@@ -43,7 +43,9 @@ struct fuse_context *fuse_get_context(void)
 
 extern struct fuse_operations fs_ops;
 mode_t D_RWX = 0777;
+mode_t D_RW = 0644;
 mode_t F_RWX = __S_IFREG | 0777;
+mode_t F_RW = __S_IFREG | 0644;
 struct fuse_file_info *FFI;
 
 char **argv;
@@ -276,11 +278,11 @@ END_TEST
 START_TEST(create_multi_dir_root)
 {
     // make many new file in root dir
-    fs_ops.mkdir("/newDir1", D_RWX);
-    fs_ops.mkdir("/newDir2", D_RWX);
-    fs_ops.mkdir("/newDir3", D_RWX);
-    fs_ops.mkdir("/newDir4", D_RWX);
-    fs_ops.mkdir("/newDir5", D_RWX);
+    fs_ops.mkdir("/newDir1", D_RW);
+    fs_ops.mkdir("/newDir2", D_RW);
+    fs_ops.mkdir("/newDir3", D_RW);
+    fs_ops.mkdir("/newDir4", D_RW);
+    fs_ops.mkdir("/newDir5", D_RW);
     
     // setup expected values
     argv = malloc(MAX_DIR_ENTS * sizeof(char *));
@@ -549,16 +551,16 @@ END_TEST
 START_TEST(create_file_3)
 {
     // create dir
-    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
     // make new file in nested dir
-    ck_assert_int_eq(fs_ops.create("/dir1/newFile", F_RWX, FFI), 0);
+    ck_assert_int_eq(fs_ops.create("/dir1/newFile", F_RW, FFI), 0);
 
     // check modes are assigned correctly via getattr
     struct stat *st = malloc(sizeof(struct stat));
     fs_ops.getattr("/dir1", st);
-    ck_assert_int_eq(st->st_mode, __S_IFDIR | D_RWX);
+    ck_assert_int_eq(st->st_mode, __S_IFDIR | D_RW);
     fs_ops.getattr("/dir1/newFile", st);
-    ck_assert_int_eq(st->st_mode, F_RWX);
+    ck_assert_int_eq(st->st_mode, F_RW);
 
     //delete file and dirs
     fs_ops.unlink("/dir1/newFile");
@@ -669,9 +671,102 @@ END_TEST
 /* UNLINK TESTS */
 
 /* MKDIR TESTS */
+// • bad path /a/b/c - b doesn’t exist (ENOENT)
+START_TEST (mkdir_b_no_exist) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2/subdir", D_RW), -ENOENT);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
+// • bad path /a/b/c - b isn’t directory (ENOTDIR)
+START_TEST (mkdir_b_not_dir) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.create("/dir1/entry", F_RWX, NULL),0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/entry/subdir", D_RW), -ENOTDIR);
+    ck_assert_int_eq(fs_ops.unlink("/dir1/entry"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
+// • bad path /a/b/c - c exists, is file (EEXIST)
+START_TEST (mkdir_c_exists_file) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RW), 0);
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/file", F_RW, NULL), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2/file", D_RW), -EEXIST);
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/file"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
 
+} END_TEST
+// • bad path /a/b/c - c exists, is directory (EEXIST)
+START_TEST (mkdir_c_exists_dir) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2/dir", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2/dir", D_RW), -EEXIST);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2/dir"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
+// • too-long name
+START_TEST (mkdir_c_too_long_name) {
+    ck_assert_int_eq(fs_ops.mkdir("/abcdefghijklmnopqrstuvwxyzaa", D_RW), 0);
+    argv = malloc(MAX_DIR_ENTS * sizeof(char *));
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
+        argv[i] = malloc(MAX_NAME_LEN);
+    }
+    entry = 0;
+    char *table[] =  {".", "..", "abcdefghijklmnopqrstuvwxyza"};
+    ck_assert_int_eq(fs_ops.readdir("/", NULL, empty_filler, 0, NULL), 0);
+    qsort(argv, entry, sizeof(char *), compFunc);
+    for(int i = 0; i < entry; i++) {
+        ck_assert_str_eq(table[i], argv[i]);
+    }
+    for(int i = 0; i < MAX_DIR_ENTS; i++) {
+        free(argv[i]);
+    }
+    free(argv);
+    ck_assert_int_eq(fs_ops.rmdir("/abcdefghijklmnopqrstuvwxyza"), 0);
+} END_TEST
 /* RMDIR TESTS */
-
+// • bad path /a/b/c - b doesn’t exist (ENOENT)
+START_TEST (rmdir_b_no_exist) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2/file"), -ENOENT);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
+// • bad path /a/b/c - b isn’t directory (ENOTDIR)
+START_TEST (rmdir_b_not_dir) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.create("/dir1/entry", F_RW, NULL), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/entry/file"), -ENOTDIR);
+    ck_assert_int_eq(fs_ops.unlink("/dir1/entry"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
+// • bad path /a/b/c - c doesn’t exist (ENOENT)
+START_TEST (rmdir_c_no_exist) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RW), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2/dir3"), -ENOENT);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
+// • bad path /a/b/c - c is file (ENOTDIR)
+START_TEST (rmdir_c_is_file) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RW), 0);
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/file", F_RW, NULL), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2/file"), -ENOTDIR);
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/file"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1/dir2"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
+// • directory not empty (ENOTEMPTY)
+START_TEST (rmdir_dir_not_empty) {
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RW), 0);
+    ck_assert_int_eq(fs_ops.create("/dir1/file", F_RW, NULL), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), -ENOTEMPTY);
+    ck_assert_int_eq(fs_ops.unlink("/dir1/file"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
+} END_TEST
 
 extern struct fuse_operations fs_ops;
 extern void block_init(char *file);
@@ -711,11 +806,19 @@ void unlink_tests(TCase *tc) {
 }
 
 void make_dir_tests(TCase *tc) {
-
+    tcase_add_test(tc, mkdir_b_no_exist);
+    tcase_add_test(tc, mkdir_b_not_dir);
+    tcase_add_test(tc, mkdir_c_exists_file);
+    tcase_add_test(tc, mkdir_c_exists_dir);
+    tcase_add_test(tc, mkdir_c_too_long_name);
 }
 
 void rmdir_tests(TCase *tc) {
-
+    tcase_add_test(tc, rmdir_b_no_exist);
+    tcase_add_test(tc, rmdir_b_not_dir);
+    tcase_add_test(tc, rmdir_c_no_exist);
+    tcase_add_test(tc, rmdir_c_is_file);
+    tcase_add_test(tc, rmdir_dir_not_empty);
 }
 
 
@@ -728,21 +831,21 @@ int main(int argc, char **argv)
     Suite *s = suite_create("fs5600:write_mostly");
     TCase *overall = tcase_create("overall");
     TCase *create = tcase_create("create");
-    // TCase *mkdir = tcase_create("make_dir");
+    TCase *mkdir = tcase_create("make_dir");
     // TCase *unlink = tcase_create("unlink");
-    // TCase *rmdir = tcase_create("rm_dir");
+    TCase *rmdir = tcase_create("rm_dir");
 
     overall_tests(overall);
     create_tests(create);
     // unlink_tests(unlink);
-    // make_dir_tests(mkdir);
-    // rmdir_tests(rmdir);
+    make_dir_tests(mkdir);
+    rmdir_tests(rmdir);
 
     suite_add_tcase(s, overall);
     suite_add_tcase(s, create);
     // suite_add_tcase(s, unlink);
-    // suite_add_tcase(s, mkdir);
-    // suite_add_tcase(s, rmdir);
+    suite_add_tcase(s, mkdir);
+    suite_add_tcase(s, rmdir);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
