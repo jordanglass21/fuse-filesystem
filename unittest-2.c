@@ -1149,6 +1149,59 @@ START_TEST (write_3000_3bk) {
     test_body(filename, step, nRead);
 } END_TEST
 
+/* Truncate */
+
+unsigned int FREE_BLOCKS = 396;
+
+// static int blocks_used(size_t size) {
+
+//     int blocks = size / (4 * 1024);
+
+//     if((size % (4 * 1024)) != 0 ) {
+//         blocks++;
+//     } 
+
+//     return blocks;
+// }
+
+static void truncate_helper(const char *path, size_t size) {
+    
+    struct statvfs sfs;
+    //int blocks = blocks_used(size);
+
+    //ensure the blocks are all free 
+    fs_ops.statfs(NULL, &sfs);
+    ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS);
+
+    ck_assert_int_eq(fs_ops.create(path, F_RWX, FFI), 0);
+
+    // write buffer to file
+    char *buf = malloc(size);
+    memset(buf, 'I', size);
+    ck_assert_int_eq(fs_ops.write(path, buf, size, 0, FFI), size);
+
+    // verify we are using N blocks
+    fs_ops.statfs(NULL, &sfs);
+    //ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS - blocks);
+
+    ck_assert_int_eq(fs_ops.truncate(path, 0), 0);
+
+    //ensure we only used 1 block for the file
+    fs_ops.statfs(NULL, &sfs);
+    ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS);
+
+    free(buf);
+}
+
+START_TEST(truncate_17_less_2bk) {
+
+    char* path = "/truncate";
+    truncate_helper(path, L2BK);
+    
+} END_TEST
+
+
+
 /* Other miscellanous things */
 
 extern struct fuse_operations fs_ops;
@@ -1259,6 +1312,57 @@ void write_overwrite_tests(TCase *tc) {
 
 }
 
+void truncate_tests(TCase *tc) {
+        /* Less than 1 Block */
+        // tcase_add_test(tc, truncate_17_less_1bk);
+        // tcase_add_test(tc, truncate_100_less_1bk);
+        // tcase_add_test(tc, truncate_1000_less_1bk);
+        // tcase_add_test(tc, truncate_1024_less_1bk);
+        // tcase_add_test(tc, truncate_1970_less_1bk);
+        // tcase_add_test(tc, truncate_3000_less_1bk);
+        
+        // /* One Block */
+        // tcase_add_test(tc, truncate_17_1bk);
+        // tcase_add_test(tc, truncate_100_1bk);
+        // tcase_add_test(tc, truncate_1000_1bk);
+        // tcase_add_test(tc, truncate_1024_1bk);
+        // tcase_add_test(tc, truncate_1970_1bk);
+        // tcase_add_test(tc, truncate_3000_1bk);
+        
+        // /* Less than 2 blocks */
+        tcase_add_test(tc, truncate_17_less_2bk);
+        // tcase_add_test(tc, truncate_100_less_2bk);
+        // tcase_add_test(tc, truncate_1000_less_2bk);
+        // tcase_add_test(tc, truncate_1024_less_2bk);
+        // tcase_add_test(tc, truncate_1970_less_2bk);
+        // tcase_add_test(tc, truncate_3000_less_2bk);
+    
+        // /* Exactly 2 blocks */
+        // tcase_add_test(tc, truncate_17_2bk);
+        // tcase_add_test(tc, truncate_100_2bk);
+        // tcase_add_test(tc, truncate_1000_2bk);
+        // tcase_add_test(tc, truncate_1024_2bk);
+        // tcase_add_test(tc, truncate_1970_2bk);
+        // tcase_add_test(tc, truncate_3000_2bk);
+    
+        // /* Less than 3 blocks */
+        // tcase_add_test(tc, truncate_17_less_3bk);
+        // tcase_add_test(tc, truncate_100_less_3bk);
+        // tcase_add_test(tc, truncate_1000_less_3bk);
+        // tcase_add_test(tc, truncate_1024_less_3bk);
+        // tcase_add_test(tc, truncate_1970_less_3bk);
+        // tcase_add_test(tc, truncate_3000_less_3bk);
+    
+        // /* Exactly 3 blocks */
+        // tcase_add_test(tc, truncate_17_3bk);
+        // tcase_add_test(tc, truncate_100_3bk);
+        // tcase_add_test(tc, truncate_1000_3bk);
+        // tcase_add_test(tc, truncate_1024_3bk);
+        // tcase_add_test(tc, truncate_1970_3bk);
+        // tcase_add_test(tc, truncate_3000_3bk);
+
+}
+
 int main(int argc, char **argv)
 {
     system("python gen-disk.py -q disk2.in test2.img");
@@ -1273,6 +1377,7 @@ int main(int argc, char **argv)
     TCase *rmdir = tcase_create("rm_dir");
     TCase *write_append = tcase_create("write_append");
     TCase *write_overwrite = tcase_create("write_overwrite");
+    TCase *truncate = tcase_create("truncate");
 
     overall_tests(overall);
     create_tests(create);
@@ -1281,6 +1386,7 @@ int main(int argc, char **argv)
     rmdir_tests(rmdir);
     write_append_tests(write_append);
     write_overwrite_tests(write_overwrite);
+    truncate_tests(truncate);
 
     suite_add_tcase(s, overall);
     suite_add_tcase(s, create);
@@ -1289,6 +1395,7 @@ int main(int argc, char **argv)
     suite_add_tcase(s, rmdir);
     suite_add_tcase(s, write_append);
     suite_add_tcase(s, write_overwrite);
+    suite_add_tcase(s, truncate);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

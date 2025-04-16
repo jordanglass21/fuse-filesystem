@@ -844,6 +844,7 @@ int fs_truncate(const char *path, off_t len)
         bit_clear(block_bitmap, inode->ptrs[i]);
         inode->ptrs[i] = 0;
     }
+    block_write(block_bitmap, 1, 1);
 
     // set metadata
     inode->size = 0;
