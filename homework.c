@@ -506,7 +506,7 @@ int fs_unlink(const char *path)
     char *paths = strdup(path);
     int inum_source = get_inum(paths);
     if (inum_source < 0) {
-        return -ENOENT;
+        return inum_source;
     }
 
     // get inode
@@ -675,12 +675,13 @@ int fs_rmdir(const char *path)
                 bit_clear(block_bitmap, block);
             }
         }
-    
+        
         // clear inode
         memset(inode, 0, sizeof(struct fs_inode));
+        bit_clear(block_bitmap, inum_source);
     
         // write  updates
-        block_write(inodes, 1, 1);
+        block_write(block_bitmap, 1, 1);
     
         //free memory
         for (int i = 0; i < MAX_PATH_LEN; i++) {

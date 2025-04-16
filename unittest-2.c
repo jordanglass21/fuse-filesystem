@@ -702,7 +702,7 @@ START_TEST(unlink_error_2)
     ck_assert_int_eq(fs_ops.create("/dir1/file1", F_RWX, FFI), 0);
 
     // unlink file with bad path
-    //ck_assert_int_eq(fs_ops.unlink("/dir1/file1/file2"), -ENOTDIR); //THIS IS THE PROBLEM???
+    ck_assert_int_eq(fs_ops.unlink("/dir1/file1/file2"), -ENOTDIR); //THIS IS THE PROBLEM???
 
     //remove file
     ck_assert_int_eq(fs_ops.unlink("/dir1/file1"), 0);
@@ -845,6 +845,50 @@ START_TEST (rmdir_dir_not_empty) {
     ck_assert_int_eq(fs_ops.rmdir("/dir1"), 0);
 } END_TEST
 
+/* Write */
+
+char *write_buf, *ptr;
+int write_func(int len) {
+    write_buf = malloc(len+5);
+    ptr = write_buf;
+    int i;
+    for (i=0, ptr = write_buf; ptr < write_buf+len; i++)
+        ptr += sprintf(ptr, "%d ", i);
+    return i;
+}
+// N=17, 100, 1000, 1024, 1970, and 3000
+// S= <1 block, 1 block, <2 blocks, 2 blocks, <3 blocks, 3 blocks
+START_TEST (write_17_less_1bk) {
+    int nRead = write_func(2048);
+    printf("%d\n", nRead);
+    ck_assert_int_eq(0, fs_ops.create("/file.2k", F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += 17) {
+        if(buf_len - i < 17) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write("/file.2k", ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(17, fs_ops.write("/file.2k", ptr, 17, i, NULL));
+            bWrite += 17;
+            ptr += 17;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr("/file.2k", st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read("/file.2k", read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, strcmp(read_buf, write_buf));
+    free(read_buf);
+    free(write_buf);
+} END_TEST
+
+
 extern struct fuse_operations fs_ops;
 extern void block_init(char *file);
 
@@ -901,6 +945,10 @@ void rmdir_tests(TCase *tc) {
     tcase_add_test(tc, rmdir_dir_not_empty);
 }
 
+void write_tests(TCase *tc) {
+    tcase_add_test(tc, write_17_less_1bk);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -914,18 +962,21 @@ int main(int argc, char **argv)
     TCase *mkdir = tcase_create("make_dir");
     TCase *unlink = tcase_create("unlink");
     TCase *rmdir = tcase_create("rm_dir");
+    TCase *write_t = tcase_create("write");
 
     overall_tests(overall);
     create_tests(create);
     unlink_tests(unlink);
     make_dir_tests(mkdir);
     rmdir_tests(rmdir);
+    write_tests(write_t);
 
     suite_add_tcase(s, overall);
     suite_add_tcase(s, create);
     suite_add_tcase(s, unlink);
     suite_add_tcase(s, mkdir);
     suite_add_tcase(s, rmdir);
+    suite_add_tcase(s, write_t);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
