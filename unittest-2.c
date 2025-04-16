@@ -848,52 +848,620 @@ START_TEST (rmdir_dir_not_empty) {
 /* Write */
 
 char *write_buf, *ptr;
+
+int L1BK = 3500, BK = 4096, L2BK = 7000, TWOBK = 8192, L3BK = 10000, THREEBK = 12288;
+int S1 = 17, S2 = 100, S3 = 1000, S4 = 1024, S5 = 1970, S6 = 3000;
+
 int write_func(int len) {
-    write_buf = malloc(len+5);
+    write_buf = malloc(len+10);
     ptr = write_buf;
     int i;
     for (i=0, ptr = write_buf; ptr < write_buf+len; i++)
         ptr += sprintf(ptr, "%d ", i);
+    *(ptr) = '\0';
+    memset(write_buf+len, 0, 10);
     return i;
 }
 // N=17, 100, 1000, 1024, 1970, and 3000
 // S= <1 block, 1 block, <2 blocks, 2 blocks, <3 blocks, 3 blocks
 START_TEST (write_17_less_1bk) {
-    int nRead = write_func(2048);
-    printf("%d\n", nRead);
-    ck_assert_int_eq(0, fs_ops.create("/file.2k", F_RW, NULL));
+    int nRead = write_func(L1BK);
+    int step = S1;
+    char *filename = "/file.2k";
+    ck_assert_int_eq(0, fs_ops.create("/filename", F_RW, NULL));
     int bWrite = 0;
     ptr = write_buf;
     int buf_len = strlen(write_buf);
-    for(int i = 0; i < buf_len; i += 17) {
-        if(buf_len - i < 17) {
-            ck_assert_int_eq(buf_len - i, fs_ops.write("/file.2k", ptr, buf_len - i, i, NULL));
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
             bWrite += buf_len - i;
             ptr += buf_len - i;
         } else {
-            ck_assert_int_eq(17, fs_ops.write("/file.2k", ptr, 17, i, NULL));
-            bWrite += 17;
-            ptr += 17;
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
         }
     }
     ck_assert_int_eq(bWrite, buf_len);
     struct stat *st = malloc(sizeof(struct stat));
-    ck_assert_int_eq(0, fs_ops.getattr("/file.2k", st));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
     ck_assert_int_eq(buf_len, st->st_size);
     free(st);
     char *read_buf = malloc(buf_len);
-    ck_assert_int_eq(buf_len, fs_ops.read("/file.2k", read_buf, buf_len, 0, NULL));
-    ck_assert_int_eq(0, strcmp(read_buf, write_buf));
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
     free(read_buf);
     free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
 } END_TEST
 
+START_TEST (write_100_less_1bk) {
+    int nRead = write_func(L1BK);
+    int step = S2;
+    char *filename = "/file.2k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1000_less_1bk) {
+    int nRead = write_func(L1BK);
+    int step = S3;
+    char *filename = "/file.2k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1024_less_1bk) {
+    int nRead = write_func(L1BK);
+    int step = S4;
+    char *filename = "/file.2k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1970_less_1bk) {
+    int nRead = write_func(L1BK);
+    int step = S5;
+    char *filename = "/file.2k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_3000_less_1bk) {
+    int nRead = write_func(L1BK);
+    int step = S6;
+    char *filename = "/file.2k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_17_1bk) {
+    int nRead = write_func(BK);
+    int step = S1;
+    char *filename = "file.4k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_100_1bk) {
+    int nRead = write_func(BK);
+    int step = S2;
+    char *filename = "file.4k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1000_1bk) {
+    int nRead = write_func(BK);
+    int step = S3;
+    char *filename = "file.4k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1024_1bk) {
+    int nRead = write_func(BK);
+    int step = S4;
+    char *filename = "file.4k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1970_1bk) {
+    int nRead = write_func(BK);
+    int step = S5;
+    char *filename = "file.4k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_3000_1bk) {
+    int nRead = write_func(BK);
+    int step = S6;
+    char *filename = "file.4k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_17_less_2bk) {
+    int nRead = write_func(L2BK);
+    int step = S1;
+    char *filename = "/file.7k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_100_less_2bk) {
+    int nRead = write_func(L2BK);
+    int step = S2;
+    char *filename = "/file.7k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1000_less_2bk) {
+    int nRead = write_func(L2BK);
+    int step = S3;
+    char *filename = "/file.7k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1024_less_2bk) {
+    int nRead = write_func(L2BK);
+    int step = S4;
+    char *filename = "/file.7k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_1970_less_2bk) {
+    int nRead = write_func(L2BK);
+    int step = S5;
+    char *filename = "/file.7k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
+
+START_TEST (write_3000_less_2bk) {
+    int nRead = write_func(L2BK);
+    int step = S6;
+    char *filename = "/file.7k";
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    printf("%d\n", nRead);
+    free(read_buf);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+} END_TEST
 
 extern struct fuse_operations fs_ops;
 extern void block_init(char *file);
 
 void overall_tests(TCase *tc) {
-    
     tcase_add_test(tc, create_multi_file_root);
     tcase_add_test(tc, unlink_multi_file_root);
     tcase_add_test(tc, create_multi_file_sub);
@@ -909,7 +1477,6 @@ void overall_tests(TCase *tc) {
 }
 
 void create_tests(TCase *tc) {
-
     tcase_add_test(tc, create_file_1);
     tcase_add_test(tc, create_file_2);
     tcase_add_test(tc, create_file_3);
@@ -946,7 +1513,29 @@ void rmdir_tests(TCase *tc) {
 }
 
 void write_tests(TCase *tc) {
+    /* Less than 1 Block */
     tcase_add_test(tc, write_17_less_1bk);
+    tcase_add_test(tc, write_100_less_1bk);
+    tcase_add_test(tc, write_1000_less_1bk);
+    tcase_add_test(tc, write_1024_less_1bk);
+    tcase_add_test(tc, write_1970_less_1bk);
+    tcase_add_test(tc, write_3000_less_1bk);
+    
+    /* One Block */
+    tcase_add_test(tc, write_17_1bk);
+    tcase_add_test(tc, write_100_1bk);
+    tcase_add_test(tc, write_1000_1bk);
+    tcase_add_test(tc, write_1024_1bk);
+    tcase_add_test(tc, write_1970_1bk);
+    tcase_add_test(tc, write_3000_1bk);
+    
+    /* Less than 2 blocks */
+    tcase_add_test(tc, write_17_less_2bk);
+    tcase_add_test(tc, write_100_less_2bk);
+    tcase_add_test(tc, write_1000_less_2bk);
+    tcase_add_test(tc, write_1024_less_2bk);
+    tcase_add_test(tc, write_1970_less_2bk);
+    tcase_add_test(tc, write_3000_less_2bk);
 }
 
 
