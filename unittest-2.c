@@ -849,18 +849,18 @@ char *write_buf, *ptr;
 int L1BK = 3500, BK = 4096, L2BK = 7000, TWOBK = 8192, L3BK = 10000, THREEBK = 12288;
 int S1 = 17, S2 = 100, S3 = 1000, S4 = 1024, S5 = 1970, S6 = 3000;
 
-int write_func(int len) {
+int write_func(int len, int start) {
     write_buf = malloc(len+10);
     ptr = write_buf;
     int i;
-    for (i=0, ptr = write_buf; ptr < write_buf+len; i++)
+    for (i=start, ptr = write_buf; ptr < write_buf+len; i++)
         ptr += sprintf(ptr, "%d ", i);
     *(ptr) = '\0';
     memset(write_buf+len, 0, 10);
     return i;
 }
 
-void test_body(char* filename, int step, int nRead) {
+void append_test_body(char* filename, int step, int nRead) {
     struct statvfs *sfs = malloc(sizeof(struct statvfs));
     ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
     int original_blocks = sfs->f_bfree;
@@ -898,255 +898,390 @@ void test_body(char* filename, int step, int nRead) {
 // N=17, 100, 1000, 1024, 1970, and 3000
 // S= <1 block, 1 block, <2 blocks, 2 blocks, <3 blocks, 3 blocks
 START_TEST (write_17_less_1bk) {
-    int nRead = write_func(L1BK);
+    int nRead = write_func(L1BK, 0);
     int step = S1;
-    char *filename = "/file.2k";
-    test_body(filename, step, nRead);
+    char *filename = "/file.3k";
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_100_less_1bk) {
-    int nRead = write_func(L1BK);
+    int nRead = write_func(L1BK, 0);
     int step = S2;
-    char *filename = "/file.2k";
-    test_body(filename, step, nRead);
+    char *filename = "/file.3k";
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1000_less_1bk) {
-    int nRead = write_func(L1BK);
+    int nRead = write_func(L1BK, 0);
     int step = S3;
-    char *filename = "/file.2k";
-    test_body(filename, step, nRead);
+    char *filename = "/file.3k";
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1024_less_1bk) {
-    int nRead = write_func(L1BK);
+    int nRead = write_func(L1BK, 0);
     int step = S4;
-    char *filename = "/file.2k";
-    test_body(filename, step, nRead);
+    char *filename = "/file.3k";
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1970_less_1bk) {
-    int nRead = write_func(L1BK);
+    int nRead = write_func(L1BK, 0);
     int step = S5;
-    char *filename = "/file.2k";
-    test_body(filename, step, nRead);
+    char *filename = "/file.3k";
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_3000_less_1bk) {
-    int nRead = write_func(L1BK);
+    int nRead = write_func(L1BK, 0);
     int step = S6;
-    char *filename = "/file.2k";
-    test_body(filename, step, nRead);
+    char *filename = "/file.3k";
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_17_1bk) {
-    int nRead = write_func(BK);
+    int nRead = write_func(BK, 0);
     int step = S1;
     char *filename = "file.4k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_100_1bk) {
-    int nRead = write_func(BK);
+    int nRead = write_func(BK, 0);
     int step = S2;
     char *filename = "file.4k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1000_1bk) {
-    int nRead = write_func(BK);
+    int nRead = write_func(BK, 0);
     int step = S3;
     char *filename = "file.4k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1024_1bk) {
-    int nRead = write_func(BK);
+    int nRead = write_func(BK, 0);
     int step = S4;
     char *filename = "file.4k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1970_1bk) {
-    int nRead = write_func(BK);
+    int nRead = write_func(BK, 0);
     int step = S5;
     char *filename = "file.4k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_3000_1bk) {
-    int nRead = write_func(BK);
+    int nRead = write_func(BK, 0);
     int step = S6;
     char *filename = "file.4k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_17_less_2bk) {
-    int nRead = write_func(L2BK);
+    int nRead = write_func(L2BK, 0);
     int step = S1;
     char *filename = "/file.7k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_100_less_2bk) {
-    int nRead = write_func(L2BK);
+    int nRead = write_func(L2BK, 0);
     int step = S2;
     char *filename = "/file.7k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1000_less_2bk) {
-    int nRead = write_func(L2BK);
+    int nRead = write_func(L2BK, 0);
     int step = S3;
     char *filename = "/file.7k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1024_less_2bk) {
-    int nRead = write_func(L2BK);
+    int nRead = write_func(L2BK, 0);
     int step = S4;
     char *filename = "/file.7k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1970_less_2bk) {
-    int nRead = write_func(L2BK);
+    int nRead = write_func(L2BK, 0);
     int step = S5;
     char *filename = "/file.7k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_3000_less_2bk) {
-    int nRead = write_func(L2BK);
+    int nRead = write_func(L2BK, 0);
     int step = S6;
     char *filename = "/file.7k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_17_2bk) {
-    int nRead = write_func(TWOBK);
+    int nRead = write_func(TWOBK, 0);
     int step = S1;
     char *filename = "file.8k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_100_2bk) {
-    int nRead = write_func(TWOBK);
+    int nRead = write_func(TWOBK, 0);
     int step = S2;
     char *filename = "file.8k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1000_2bk) {
-    int nRead = write_func(TWOBK);
+    int nRead = write_func(TWOBK, 0);
     int step = S3;
     char *filename = "file.8k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1024_2bk) {
-    int nRead = write_func(TWOBK);
+    int nRead = write_func(TWOBK, 0);
     int step = S4;
     char *filename = "file.8k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1970_2bk) {
-    int nRead = write_func(TWOBK);
+    int nRead = write_func(TWOBK, 0);
     int step = S5;
     char *filename = "file.8k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_3000_2bk) {
-    int nRead = write_func(TWOBK);
+    int nRead = write_func(TWOBK, 0);
     int step = S6;
     char *filename = "file.8k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_17_less_3bk) {
-    int nRead = write_func(L3BK);
+    int nRead = write_func(L3BK, 0);
     int step = S1;
     char *filename = "file.10k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_100_less_3bk) {
-    int nRead = write_func(L3BK);
+    int nRead = write_func(L3BK, 0);
     int step = S2;
     char *filename = "file.10k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1000_less_3bk) {
-    int nRead = write_func(L3BK);
+    int nRead = write_func(L3BK, 0);
     int step = S3;
     char *filename = "file.10k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1024_less_3bk) {
-    int nRead = write_func(L3BK);
+    int nRead = write_func(L3BK, 0);
     int step = S4;
     char *filename = "file.10k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1970_less_3bk) {
-    int nRead = write_func(L3BK);
+    int nRead = write_func(L3BK, 0);
     int step = S5;
     char *filename = "file.10k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_3000_less_3bk) {
-    int nRead = write_func(L3BK);
+    int nRead = write_func(L3BK, 0);
     int step = S6;
     char *filename = "file.10k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_17_3bk) {
-    int nRead = write_func(THREEBK);
+    int nRead = write_func(THREEBK, 0);
     int step = S1;
     char *filename = "file.12k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_100_3bk) {
-    int nRead = write_func(THREEBK);
+    int nRead = write_func(THREEBK, 0);
     int step = S2;
     char *filename = "file.12k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1000_3bk) {
-    int nRead = write_func(THREEBK);
+    int nRead = write_func(THREEBK, 0);
     int step = S3;
     char *filename = "file.12k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1024_3bk) {
-    int nRead = write_func(THREEBK);
+    int nRead = write_func(THREEBK, 0);
     int step = S4;
     char *filename = "file.12k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_1970_3bk) {
-    int nRead = write_func(THREEBK);
+    int nRead = write_func(THREEBK, 0);
     int step = S5;
     char *filename = "file.12k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
 } END_TEST
 
 START_TEST (write_3000_3bk) {
-    int nRead = write_func(THREEBK);
+    int nRead = write_func(THREEBK, 0);
     int step = S6;
     char *filename = "file.12k";
-    test_body(filename, step, nRead);
+    append_test_body(filename, step, nRead);
+} END_TEST
+
+/* Write - Overwrite */
+
+void overwrite_write_op(char *filename, int step) {
+    int bWrite = 0;
+    ptr = write_buf;
+    int buf_len = strlen(write_buf);
+    for(int i = 0; i < buf_len; i += step) {
+        if(buf_len - i < step) {
+            ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
+            bWrite += buf_len - i;
+            ptr += buf_len - i;
+        } else {
+            ck_assert_int_eq(step, fs_ops.write(filename, ptr, step, i, NULL));
+            bWrite += step;
+            ptr += step;
+        }
+    }
+    ck_assert_int_eq(bWrite, buf_len);
+    struct stat *st = malloc(sizeof(struct stat));
+    ck_assert_int_eq(0, fs_ops.getattr(filename, st));
+    ck_assert_int_eq(buf_len, st->st_size);
+    free(st);
+    char *read_buf = malloc(buf_len);
+    ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
+    ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    free(read_buf);
+}
+
+void overwrite_test_body(char *filename, int step, int nRead, int bytes) {
+    struct statvfs *sfs = malloc(sizeof(struct statvfs));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    int original_blocks = sfs->f_bfree;
+    ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    overwrite_write_op(filename, step);
+    char *original_ptr = write_buf;
+    printf("original: %d\n", nRead);
+    
+    // generate nad overwrite original below
+    nRead = write_func(bytes, 10);
+    ck_assert_int_eq(bytes, strlen(write_buf));
+    overwrite_write_op(filename, step);
+    printf("updated: %d\n", nRead);
+    
+    free(original_ptr);
+    free(write_buf);
+    ck_assert_int_eq(0, fs_ops.unlink(filename));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_blocks, sfs->f_bfree);
+    free(sfs);
+}
+
+START_TEST (overwrite_17_less_1bk) {
+    int nRead = write_func(L1BK, 0);
+    int step = S1;
+    char *filename = "file.3k";
+    overwrite_test_body(filename, step, nRead, L1BK);
+} END_TEST
+
+START_TEST (overwrite_1024_less_1bk) {
+    int nRead = write_func(L1BK, 0);
+    int step = S4;
+    char *filename = "file.3k";
+    overwrite_test_body(filename, step, nRead, L1BK);
+} END_TEST
+
+START_TEST (overwrite_17_1bk) {
+    int nRead = write_func(BK, 0);
+    int step = S1;
+    char *filename = "file.4k";
+    overwrite_test_body(filename, step, nRead, BK);
+} END_TEST
+
+START_TEST (overwrite_1024_1bk) {
+    int nRead = write_func(BK, 0);
+    int step = S4;
+    char *filename = "file.4k";
+    overwrite_test_body(filename, step, nRead, BK);
+} END_TEST
+
+START_TEST (overwrite_17_less_2bk) {
+    int nRead = write_func(L2BK, 0);
+    int step = S1;
+    char *filename = "file.7k";
+    overwrite_test_body(filename, step, nRead, L2BK);
+} END_TEST
+
+START_TEST (overwrite_1024_less_2bk) {
+    int nRead = write_func(L2BK, 0);
+    int step = S4;
+    char *filename = "file.7k";
+    overwrite_test_body(filename, step, nRead, L2BK);
+} END_TEST
+
+START_TEST (overwrite_17_2bk) {
+    int nRead = write_func(TWOBK, 0);
+    int step = S1;
+    char *filename = "file.8k";
+    overwrite_test_body(filename, step, nRead, TWOBK);
+} END_TEST
+
+START_TEST (overwrite_1024_2bk) {
+    int nRead = write_func(TWOBK, 0);
+    int step = S4;
+    char *filename = "file.8k";
+    overwrite_test_body(filename, step, nRead, TWOBK);
+} END_TEST
+
+START_TEST (overwrite_17_less_3bk) {
+    int nRead = write_func(L3BK, 0);
+    int step = S1;
+    char *filename = "file.10k";
+    overwrite_test_body(filename, step, nRead, L3BK);
+} END_TEST
+
+START_TEST (overwrite_1024_less_3bk) {
+    int nRead = write_func(L3BK, 0);
+    int step = S4;
+    char *filename = "file.10k";
+    overwrite_test_body(filename, step, nRead, L3BK);
+} END_TEST
+
+START_TEST (overwrite_17_3bk) {
+    int nRead = write_func(THREEBK, 0);
+    int step = S1;
+    char *filename = "file.12k";
+    overwrite_test_body(filename, step, nRead, THREEBK);
+} END_TEST
+
+START_TEST (overwrite_1024_3bk) {
+    int nRead = write_func(THREEBK, 0);
+    int step = S4;
+    char *filename = "file.12k";
+    overwrite_test_body(filename, step, nRead, THREEBK);
 } END_TEST
 
 /* Other miscellanous things */
@@ -1256,7 +1391,18 @@ void write_append_tests(TCase *tc) {
 }
 
 void write_overwrite_tests(TCase *tc) {
-
+    tcase_add_test(tc, overwrite_17_less_1bk);
+    tcase_add_test(tc, overwrite_1024_less_1bk);
+    tcase_add_test(tc, overwrite_17_1bk);
+    tcase_add_test(tc, overwrite_1024_1bk);
+    tcase_add_test(tc, overwrite_17_less_2bk);
+    tcase_add_test(tc, overwrite_1024_less_2bk);
+    tcase_add_test(tc, overwrite_17_2bk);
+    tcase_add_test(tc, overwrite_1024_2bk);
+    tcase_add_test(tc, overwrite_17_less_3bk);
+    tcase_add_test(tc, overwrite_1024_less_3bk);
+    tcase_add_test(tc, overwrite_17_3bk);
+    tcase_add_test(tc, overwrite_1024_3bk);
 }
 
 int main(int argc, char **argv)
