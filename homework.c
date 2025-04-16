@@ -603,7 +603,7 @@ int fs_rmdir(const char *path)
         char *paths = strdup(path);
         int inum_source = get_inum(paths);
         if (inum_source < 0) {
-            return -ENOENT;
+            return inum_source;
         }
     
         // get inode
