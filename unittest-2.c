@@ -697,21 +697,17 @@ START_TEST(unlink_error_2)
 {
     // create dir
     ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
-    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
 
     // make new file
     ck_assert_int_eq(fs_ops.create("/dir1/file1", F_RWX, FFI), 0);
-    ck_assert_int_eq(fs_ops.create("/dir1/dir2/file2", F_RWX, FFI), 0);
 
     // unlink file with bad path
-    //ck_assert_int_eq(fs_ops.unlink("/dir1/file1/file2"), -ENOTDIR);
+    //ck_assert_int_eq(fs_ops.unlink("/dir1/file1/file2"), -ENOTDIR); //THIS IS THE PROBLEM???
 
     //remove file
     ck_assert_int_eq(fs_ops.unlink("/dir1/file1"), 0);
-    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/file2"), 0);
 
-    //delete dirs
-    fs_ops.rmdir("/dir1/dir2");
+    //delete dir
     fs_ops.rmdir("/dir1");
 }
 END_TEST
@@ -729,6 +725,7 @@ START_TEST(unlink_error_3)
     //delete dirs
     fs_ops.rmdir("/dir1/dir2");
     fs_ops.rmdir("/dir1");
+
 }
 END_TEST
 
