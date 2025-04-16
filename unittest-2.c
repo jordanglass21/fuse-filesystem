@@ -668,6 +668,86 @@ END_TEST
 
 /* UNLINK TESTS */
 
+// bad path /a/b/c- b doesn’t exist (ENOENT)
+START_TEST(unlink_error_1)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+
+    // make new file
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/file1", F_RWX, FFI), 0);
+
+    // unlink file with bad path
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dirTwo/file1"), -ENOENT);
+
+    //remove file
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/file1"), 0);
+
+    //delete dirs
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
+// bad path /a/b/c- b isn’t directory (ENOTDIR) ???
+START_TEST(unlink_error_2)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+
+    // make new file
+    ck_assert_int_eq(fs_ops.create("/dir1/file1", F_RWX, FFI), 0);
+    ck_assert_int_eq(fs_ops.create("/dir1/dir2/file2", F_RWX, FFI), 0);
+
+    // unlink file with bad path
+    //ck_assert_int_eq(fs_ops.unlink("/dir1/file1/file2"), -ENOTDIR);
+
+    //remove file
+    ck_assert_int_eq(fs_ops.unlink("/dir1/file1"), 0);
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/file2"), 0);
+
+    //delete dirs
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
+// bad path /a/b/c- c doesn’t exist (ENOENT)
+START_TEST(unlink_error_3)
+{
+    // create dir
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+
+    // unlink file that does not exist
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/file1"), -ENOENT);
+
+    //delete dirs
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
+// bad path /a/b/c- c is directory (EISDIR)
+START_TEST(unlink_error_4)
+{
+    // create dirs
+    ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2/dir3", D_RWX), 0);
+
+    // unlink a dir
+    ck_assert_int_eq(fs_ops.unlink("/dir1/dir2/dir3"), -EISDIR);
+
+    //delete dirs
+    fs_ops.rmdir("/dir1/dir2/dir3");
+    fs_ops.rmdir("/dir1/dir2");
+    fs_ops.rmdir("/dir1");
+}
+END_TEST
+
 /* MKDIR TESTS */
 
 /* RMDIR TESTS */
@@ -707,7 +787,10 @@ void create_tests(TCase *tc) {
 }
 
 void unlink_tests(TCase *tc) {
-
+    tcase_add_test(tc, unlink_error_1);
+    tcase_add_test(tc, unlink_error_2);
+    tcase_add_test(tc, unlink_error_3);
+    tcase_add_test(tc, unlink_error_4);
 }
 
 void make_dir_tests(TCase *tc) {
@@ -729,18 +812,18 @@ int main(int argc, char **argv)
     TCase *overall = tcase_create("overall");
     TCase *create = tcase_create("create");
     // TCase *mkdir = tcase_create("make_dir");
-    // TCase *unlink = tcase_create("unlink");
+    TCase *unlink = tcase_create("unlink");
     // TCase *rmdir = tcase_create("rm_dir");
 
     overall_tests(overall);
     create_tests(create);
-    // unlink_tests(unlink);
+    unlink_tests(unlink);
     // make_dir_tests(mkdir);
     // rmdir_tests(rmdir);
 
     suite_add_tcase(s, overall);
     suite_add_tcase(s, create);
-    // suite_add_tcase(s, unlink);
+    suite_add_tcase(s, unlink);
     // suite_add_tcase(s, mkdir);
     // suite_add_tcase(s, rmdir);
 
