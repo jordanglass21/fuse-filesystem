@@ -1288,54 +1288,86 @@ START_TEST (overwrite_1024_3bk) {
 
 unsigned int FREE_BLOCKS = 396;
 
-// static int blocks_used(size_t size) {
-
-//     int blocks = size / (4 * 1024);
-
-//     if((size % (4 * 1024)) != 0 ) {
-//         blocks++;
-//     } 
-
-//     return blocks;
-// }
-
-static void truncate_helper(const char *path, size_t size) {
-    
+static void truncate_helper(const char *path, size_t size, unsigned int blocks_used) {
     struct statvfs sfs;
-    //int blocks = blocks_used(size);
 
     //ensure the blocks are all free 
     fs_ops.statfs(NULL, &sfs);
-    ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS);
+    ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS - blocks_used);
 
     ck_assert_int_eq(fs_ops.create(path, F_RWX, FFI), 0);
+
+    fs_ops.statfs(NULL, &sfs);
+    ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS - 1 - blocks_used);
 
     // write buffer to file
     char *buf = malloc(size);
     memset(buf, 'I', size);
     ck_assert_int_eq(fs_ops.write(path, buf, size, 0, FFI), size);
 
-    // verify we are using N blocks
-    fs_ops.statfs(NULL, &sfs);
-    //ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS - blocks);
 
     ck_assert_int_eq(fs_ops.truncate(path, 0), 0);
 
     //ensure we only used 1 block for the file
     fs_ops.statfs(NULL, &sfs);
-    ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS);
+    ck_assert_uint_eq(sfs.f_bfree, FREE_BLOCKS - 1 - blocks_used);
 
+    // reset
+    fs_ops.unlink(path);
     free(buf);
 }
 
-START_TEST(truncate_17_less_2bk) {
+/* Truncate different sized files */
+
+START_TEST(truncate_L1BK) {
 
     char* path = "/truncate";
-    truncate_helper(path, L2BK);
+    truncate_helper(path, L2BK, 0);
     
 } END_TEST
 
+START_TEST(truncate_BK) {
 
+    char* path = "/truncate";
+    truncate_helper(path, BK, 0);
+    
+} END_TEST
+
+START_TEST(truncate_L2BK) {
+
+    char* path = "/truncate";
+    truncate_helper(path, L2BK, 0);
+    
+} END_TEST
+
+START_TEST(truncate_TWOBK) {
+
+    char* path = "/truncate";
+    truncate_helper(path, TWOBK, 0);
+    
+} END_TEST
+
+START_TEST(truncate_L3BK) {
+
+    //ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
+
+    char* path = "/truncate";
+    truncate_helper(path, L3BK, 0);
+
+    //fs_ops.rmdir("/dir1");
+    
+} END_TEST
+
+START_TEST(truncate_THREEBK) {
+
+    char* path = "/truncate";
+    truncate_helper(path, THREEBK, 0);
+    
+} END_TEST
+
+/* Truncate Errors */
+
+/* Truncate Nested */
 
 /* Other miscellanous things */
 
@@ -1459,53 +1491,13 @@ void write_overwrite_tests(TCase *tc) {
 }
 
 void truncate_tests(TCase *tc) {
-        /* Less than 1 Block */
-        // tcase_add_test(tc, truncate_17_less_1bk);
-        // tcase_add_test(tc, truncate_100_less_1bk);
-        // tcase_add_test(tc, truncate_1000_less_1bk);
-        // tcase_add_test(tc, truncate_1024_less_1bk);
-        // tcase_add_test(tc, truncate_1970_less_1bk);
-        // tcase_add_test(tc, truncate_3000_less_1bk);
         
-        // /* One Block */
-        // tcase_add_test(tc, truncate_17_1bk);
-        // tcase_add_test(tc, truncate_100_1bk);
-        // tcase_add_test(tc, truncate_1000_1bk);
-        // tcase_add_test(tc, truncate_1024_1bk);
-        // tcase_add_test(tc, truncate_1970_1bk);
-        // tcase_add_test(tc, truncate_3000_1bk);
-        
-        // /* Less than 2 blocks */
-        tcase_add_test(tc, truncate_17_less_2bk);
-        // tcase_add_test(tc, truncate_100_less_2bk);
-        // tcase_add_test(tc, truncate_1000_less_2bk);
-        // tcase_add_test(tc, truncate_1024_less_2bk);
-        // tcase_add_test(tc, truncate_1970_less_2bk);
-        // tcase_add_test(tc, truncate_3000_less_2bk);
-    
-        // /* Exactly 2 blocks */
-        // tcase_add_test(tc, truncate_17_2bk);
-        // tcase_add_test(tc, truncate_100_2bk);
-        // tcase_add_test(tc, truncate_1000_2bk);
-        // tcase_add_test(tc, truncate_1024_2bk);
-        // tcase_add_test(tc, truncate_1970_2bk);
-        // tcase_add_test(tc, truncate_3000_2bk);
-    
-        // /* Less than 3 blocks */
-        // tcase_add_test(tc, truncate_17_less_3bk);
-        // tcase_add_test(tc, truncate_100_less_3bk);
-        // tcase_add_test(tc, truncate_1000_less_3bk);
-        // tcase_add_test(tc, truncate_1024_less_3bk);
-        // tcase_add_test(tc, truncate_1970_less_3bk);
-        // tcase_add_test(tc, truncate_3000_less_3bk);
-    
-        // /* Exactly 3 blocks */
-        // tcase_add_test(tc, truncate_17_3bk);
-        // tcase_add_test(tc, truncate_100_3bk);
-        // tcase_add_test(tc, truncate_1000_3bk);
-        // tcase_add_test(tc, truncate_1024_3bk);
-        // tcase_add_test(tc, truncate_1970_3bk);
-        // tcase_add_test(tc, truncate_3000_3bk);
+    tcase_add_test(tc, truncate_L1BK);
+    tcase_add_test(tc, truncate_BK);
+    tcase_add_test(tc, truncate_L2BK);
+    tcase_add_test(tc, truncate_TWOBK);
+    tcase_add_test(tc, truncate_L3BK);
+    tcase_add_test(tc, truncate_THREEBK);    
 
 }
 
