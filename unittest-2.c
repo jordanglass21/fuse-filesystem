@@ -861,9 +861,6 @@ int write_func(int len, int start) {
 }
 
 void append_test_body(char* filename, int step, int nRead) {
-    struct statvfs *sfs = malloc(sizeof(struct statvfs));
-    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
-    int original_blocks = sfs->f_bfree;
     ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
     int bWrite = 0;
     ptr = write_buf;
@@ -891,9 +888,6 @@ void append_test_body(char* filename, int step, int nRead) {
     free(read_buf);
     free(write_buf);
     ck_assert_int_eq(0, fs_ops.unlink(filename));
-    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
-    ck_assert_int_eq(original_blocks, sfs->f_bfree);
-    free(sfs);
 }
 // N=17, 100, 1000, 1024, 1970, and 3000
 // S= <1 block, 1 block, <2 blocks, 2 blocks, <3 blocks, 3 blocks
@@ -1183,17 +1177,23 @@ void overwrite_test_body(char *filename, int step, int nRead, int bytes) {
     int original_blocks = sfs->f_bfree;
     ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
     overwrite_write_op(filename, step);
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    int data_blocks = ceil(bytes/4096.0);
+    ck_assert_int_eq(original_blocks - 1 - data_blocks, sfs->f_bfree);
     char *original_ptr = write_buf;
     printf("original: %d\n", nRead);
-    
+
     // generate nad overwrite original below
     nRead = write_func(bytes, 10);
     ck_assert_int_eq(bytes, strlen(write_buf));
+    ck_assert_int_eq(strlen(original_ptr), strlen(write_buf));
     overwrite_write_op(filename, step);
     printf("updated: %d\n", nRead);
     
     free(original_ptr);
     free(write_buf);
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_blocks - 1 - data_blocks, sfs->f_bfree);
     ck_assert_int_eq(0, fs_ops.unlink(filename));
     ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
     ck_assert_int_eq(original_blocks, sfs->f_bfree);
@@ -1282,6 +1282,144 @@ START_TEST (overwrite_1024_3bk) {
     int step = S4;
     char *filename = "file.12k";
     overwrite_test_body(filename, step, nRead, THREEBK);
+} END_TEST
+
+/* Write Error */
+
+START_TEST (write_err_b_no_exist) {
+    char *buf = "HelloThere";
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1", D_RW));
+    ck_assert_int_eq(-ENOENT, fs_ops.write("/dir1/dir2/file", buf, 10, 0, NULL));
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1"));
+} END_TEST
+
+START_TEST (write_err_b_not_dir) {
+    char *buf = "HelloThere";
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1", D_RW));
+    ck_assert_int_eq(0, fs_ops.create("/dir1/dir2", F_RW, NULL));
+    ck_assert_int_eq(-ENOTDIR, fs_ops.write("/dir1/dir2/file", buf, 10, 0, NULL));
+    ck_assert_int_eq(0, fs_ops.unlink("/dir1/dir2"));
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1"));
+} END_TEST
+
+START_TEST (write_err_c_is_dir) {
+    char *buf = "HelloThere";
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1", D_RW));
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1/dir2", D_RW));
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1/dir2/file", D_RW));
+    ck_assert_int_eq(-EISDIR, fs_ops.write("/dir1/dir2/file", buf, 10, 0, NULL));
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1/dir2/file"));
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1/dir2"));
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1"));
+} END_TEST
+
+START_TEST (write_err_c_no_exist) {
+    char *buf = "HelloThere";
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1", D_RW));
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1/dir2", D_RW));
+    ck_assert_int_eq(-ENOENT, fs_ops.write("/dir1/dir2/file", buf, 10, 0, NULL));
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1/dir2"));
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1"));
+} END_TEST
+
+START_TEST (write_err_offset_gt_size) {
+    char *buf = "HelloThere";
+    ck_assert_int_eq(0, fs_ops.create("/file", F_RW, NULL));
+    ck_assert_int_eq(-EINVAL, fs_ops.write("/file", buf, 10, 4, NULL));
+    ck_assert_int_eq(0, fs_ops.unlink("/file"));
+} END_TEST
+
+/* Write Block Checks */
+
+START_TEST (write_check_blocks_L1BK) {
+    write_func(L1BK, 0);
+    struct statvfs *sfs = malloc(sizeof(struct statvfs));
+    
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(396, sfs->f_bfree);
+    
+    int original_block_num = sfs->f_bfree;
+    
+    ck_assert_int_eq(0, fs_ops.create("/file", F_RW, NULL));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-1, sfs->f_bfree);
+    
+    ck_assert_int_eq(L1BK, fs_ops.write("/file", write_buf, L1BK, 0, NULL));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-1-ceil(L1BK/4096.0), sfs->f_bfree);
+    
+    ck_assert_int_eq(0, fs_ops.unlink("/file"));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num, sfs->f_bfree);
+} END_TEST
+
+START_TEST (write_check_blocks_subdir_L2BK) {
+    write_func(L2BK, 0);
+    struct statvfs *sfs = malloc(sizeof(struct statvfs));
+    
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(396, sfs->f_bfree);
+    
+    int original_block_num = sfs->f_bfree;
+    
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1", D_RW));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2, sfs->f_bfree);
+
+    ck_assert_int_eq(0, fs_ops.create("/dir1/file", F_RW, NULL));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2-1, sfs->f_bfree);
+    
+    ck_assert_int_eq(L2BK, fs_ops.write("/dir1/file", write_buf, L2BK, 0, NULL));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2-1-ceil(L2BK/4096.0), sfs->f_bfree);
+    
+    ck_assert_int_eq(0, fs_ops.unlink("/dir1/file"));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2, sfs->f_bfree);
+    
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1"));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num, sfs->f_bfree);
+} END_TEST
+
+START_TEST (write_check_blocks_nest_L3BK) {
+    write_func(L2BK, 0);
+    struct statvfs *sfs = malloc(sizeof(struct statvfs));
+    
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(396, sfs->f_bfree);
+    
+    int original_block_num = sfs->f_bfree;
+
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1", D_RW));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2, sfs->f_bfree);
+    
+    ck_assert_int_eq(0, fs_ops.mkdir("/dir1/dir2", D_RW));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2-2, sfs->f_bfree);
+
+    
+    ck_assert_int_eq(0, fs_ops.create("/dir1/dir2/file", F_RW, NULL));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2-2-1, sfs->f_bfree);
+    
+    ck_assert_int_eq(L3BK, fs_ops.write("/dir1/dir2/file", write_buf, L3BK, 0, NULL));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2-2-1-ceil(L3BK/4096.0), sfs->f_bfree);
+    
+    ck_assert_int_eq(0, fs_ops.unlink("/dir1/dir2/file"));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2-2, sfs->f_bfree);
+    
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1/dir2"));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num-2, sfs->f_bfree);
+    
+    ck_assert_int_eq(0, fs_ops.rmdir("/dir1"));
+    ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
+    ck_assert_int_eq(original_block_num, sfs->f_bfree);
 } END_TEST
 
 /* Truncate */
@@ -1532,6 +1670,21 @@ void write_overwrite_tests(TCase *tc) {
     tcase_add_test(tc, overwrite_1024_3bk);
 }
 
+void write_check(TCase *tc) {
+    /* Errors */
+    tcase_add_test(tc, write_err_b_no_exist);
+    tcase_add_test(tc, write_err_b_not_dir);
+    tcase_add_test(tc, write_err_c_is_dir);
+    tcase_add_test(tc, write_err_c_no_exist);
+    tcase_add_test(tc, write_err_offset_gt_size);
+    
+    /* Write Block Checks */
+    // L{1, 2, 3}BK
+    tcase_add_test(tc, write_check_blocks_L1BK);
+    tcase_add_test(tc, write_check_blocks_subdir_L2BK);
+    tcase_add_test(tc, write_check_blocks_nest_L3BK);
+}
+
 void truncate_tests(TCase *tc) {
         
     // different sized blocks
@@ -1566,6 +1719,7 @@ int main(int argc, char **argv)
     TCase *rmdir = tcase_create("rm_dir");
     TCase *write_append = tcase_create("write_append");
     TCase *write_overwrite = tcase_create("write_overwrite");
+    TCase *write_checks = tcase_create("write_checks");
     TCase *truncate = tcase_create("truncate");
 
     overall_tests(overall);
@@ -1575,6 +1729,7 @@ int main(int argc, char **argv)
     rmdir_tests(rmdir);
     write_append_tests(write_append);
     write_overwrite_tests(write_overwrite);
+    write_check(write_checks);
     truncate_tests(truncate);
 
     suite_add_tcase(s, overall);
@@ -1584,6 +1739,7 @@ int main(int argc, char **argv)
     suite_add_tcase(s, rmdir);
     suite_add_tcase(s, write_append);
     suite_add_tcase(s, write_overwrite);
+    suite_add_tcase(s, write_checks);
     suite_add_tcase(s, truncate);
 
     SRunner *sr = srunner_create(s);

@@ -55,6 +55,8 @@ int bit_test(unsigned char *map, int i)
 
 #define MAX_PATH_LEN 10
 #define MAX_NAME_LEN 27
+#define INODE_BLOCK_PTRS 1019
+#define DIRENTS_IN_BLOCK 128
 
 struct fs_super *super_block;
 
@@ -74,7 +76,7 @@ struct fs_inode *inodes;
 */
 void process_init_read_in(struct fs_dirent * dir) {
     struct fs_dirent *entry = NULL;
-    for(int i = 0; i < 128; i++){
+    for(int i = 0; i < DIRENTS_IN_BLOCK; i++){
         entry = dir + i;
         if(entry->valid){
             printf("i: %d\n", i);
@@ -90,7 +92,7 @@ void process_init_read_in(struct fs_dirent * dir) {
             // block_read(n_inode, data_region, 1); // i think this is how we calculate the datablocks we read in?
 
             if(S_ISDIR(n_inode->mode)) {
-                struct fs_dirent *n_dir = malloc(4096);
+                struct fs_dirent *n_dir = malloc(FS_BLOCK_SIZE);
                 block_read(n_dir, *(n_inode->ptrs), 1);
                 process_init_read_in(n_dir);
                 free(n_dir);
@@ -130,7 +132,7 @@ int translate(int pathc, char **pathv) {
     printf("pathc: %d\n", pathc);
     int inum = 2;
     int inode_found = 0;
-    struct fs_dirent *dir = malloc(4096);
+    struct fs_dirent *dir = malloc(FS_BLOCK_SIZE);
     for(int i = 0; i < pathc; i++) {
         printf("translate looking for: %s\n", pathv[i]);
         inode_found = 0;
@@ -141,7 +143,7 @@ int translate(int pathc, char **pathv) {
 
         block_read(dir, *((inodes+inum)->ptrs), 1);
 
-        for(int j = 0; j < 128; j++) {
+        for(int j = 0; j < DIRENTS_IN_BLOCK; j++) {
             if(dir[j].valid && strcmp((dir+j)->name, pathv[i]) == 0) {
                 //return (dir + j)->inode; this is how it was before
                 inum = dir[j].inode; // i think we need to keep looking to find a nested dir
@@ -210,15 +212,15 @@ int find_free() {
 }
 
 int dir_empty(struct fs_inode *inode) {
-    for (int i = 0; i < 1019; i++) {
+    for (int i = 0; i < INODE_BLOCK_PTRS; i++) {
         int block = inode->ptrs[i];
         if (block == 0) {
             continue;
         }
-        struct fs_dirent *entries = malloc(sizeof(struct fs_dirent) * 128);
+        struct fs_dirent *entries = malloc(sizeof(struct fs_dirent) * DIRENTS_IN_BLOCK);
         block_read(entries, block, 1);
 
-        for (int j = 0; j < 128; j++) {
+        for (int j = 0; j < DIRENTS_IN_BLOCK; j++) {
             if (entries[j].valid) {
                 free(entries);
                 return 0;
@@ -252,7 +254,7 @@ void* fs_init(struct fuse_conn_info *conn)
     }
 
     // allocate memory for the block bitmap
-    block_bitmap = malloc(4096);
+    block_bitmap = malloc(FS_BLOCK_SIZE);
 
     // READ BITMAP
     block_read(block_bitmap, 1, 1);
@@ -283,7 +285,7 @@ void* fs_init(struct fuse_conn_info *conn)
     printf("Size of array: %ld\n", sizeof((inodes+2)->ptrs));
     printf("ptr: %d\n", *((inodes+2)->ptrs));
     
-    struct fs_dirent *dirents = malloc(128 * sizeof(struct fs_dirent));
+    struct fs_dirent *dirents = malloc(DIRENTS_IN_BLOCK * sizeof(struct fs_dirent));
     block_read(dirents, *((inodes+2)->ptrs), 1);
 
     process_init_read_in(dirents);
@@ -370,7 +372,7 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
 
     if(!S_ISDIR((inodes+inum)->mode)) return -ENOTDIR;
 
-    struct fs_dirent *dirents = malloc(128 * sizeof(struct fs_dirent));
+    struct fs_dirent *dirents = malloc(DIRENTS_IN_BLOCK * sizeof(struct fs_dirent));
     block_read(dirents, *((inodes+inum)->ptrs), 1);
     struct fs_inode *ino = malloc(sizeof(struct fs_inode));
     struct stat *sb = malloc(sizeof(struct stat));
@@ -378,7 +380,7 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
     filler(ptr, ".", sb, 0);
     fill_stat(inodes+prevInum, sb, prevInum);
     filler(ptr, "..", sb, 0);
-    for(int i = 0; i < 128; i++) {
+    for(int i = 0; i < DIRENTS_IN_BLOCK; i++) {
         struct fs_dirent *ent = dirents+i;
         if(ent->valid) {
             block_read(ino, ent->inode, 1);
@@ -427,19 +429,19 @@ int fs_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
     int nInum = get_inum(strdup(path));
     if(nInum > 0) return -EEXIST;
-    struct fs_dirent *dir = malloc(128 * sizeof(struct fs_dirent));
+    struct fs_dirent *dir = malloc(DIRENTS_IN_BLOCK * sizeof(struct fs_dirent));
     block_read(dir, *((inodes+dirInum)->ptrs), 1);
     struct fs_dirent *entry;
     
     int i=0;
-    for(; i < 128; i++) {
+    for(; i < DIRENTS_IN_BLOCK; i++) {
         entry = dir+i;
         if(!entry->valid && *(entry->name) == '\000') {
             break;
         }
     }
     
-    if(i == 128) {
+    if(i == DIRENTS_IN_BLOCK) {
         free(dir);
         free(pathv);
         return -ENOSPC;
@@ -480,8 +482,8 @@ int fs_mkdir(const char *path, mode_t mode)
     struct fs_inode *nInode = inodes+get_inum(strdup(path));
     int freeblk = find_free();
     bit_set(block_bitmap, freeblk);
-    memset(nInode->ptrs, 0, 4096);
-    for(int i = 0; i < 1019; i++) {
+    memset(nInode->ptrs, 0, sizeof(uint32_t)*INODE_BLOCK_PTRS);
+    for(int i = 0; i < INODE_BLOCK_PTRS; i++) {
         if(*((nInode->ptrs)+i) == 0) {
             *((nInode->ptrs)+i) = freeblk;
             break;
@@ -490,6 +492,11 @@ int fs_mkdir(const char *path, mode_t mode)
     nInode->ctime=time(NULL);
     nInode->mtime=time(NULL);
     nInode->size=4096;
+    struct fs_dirent *dir = malloc(FS_BLOCK_SIZE);
+    block_read(dir, freeblk, 1);
+    memset(dir, 0, FS_BLOCK_SIZE);
+    block_write(dir, freeblk, 1);
+    free(dir);
     block_write(nInode,get_inum(strdup(path)), 1);
     block_write(block_bitmap, 1, 1);
     return err;
@@ -546,14 +553,14 @@ int fs_unlink(const char *path)
     }
 
     // read in parent dir 
-    struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * 128);
+    struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * DIRENTS_IN_BLOCK);
     block_read(dirent, (inodes+parent)->ptrs[0], 1);
 
     printf("dir: %s\n", dirent->name);
     printf("parent: %d\n", parent);
 
     // do the delete
-    for (int i = 0; i < 128; i++) {
+    for (int i = 0; i < DIRENTS_IN_BLOCK; i++) {
         if (dirent[i].valid && dirent[i].inode == inum_source) {
             dirent[i].valid = 0;
             memset(dirent[i].name, 0, MAX_NAME_LEN);
@@ -649,14 +656,14 @@ int fs_rmdir(const char *path)
         }
     
         // read in parent dir 
-        struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * 128);
+        struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * DIRENTS_IN_BLOCK);
         block_read(dirent, (inodes+parent)->ptrs[0], 1);
     
         printf("dir: %s\n", dirent->name);
         printf("parent: %d\n", parent);
     
         // do the delete
-        for (int i = 0; i < 128; i++) {
+        for (int i = 0; i < DIRENTS_IN_BLOCK; i++) {
             if (dirent[i].valid && dirent[i].inode == inum_source) {
                 dirent[i].valid = 0;
                 memset(dirent[i].name, 0, MAX_NAME_LEN);
@@ -744,10 +751,10 @@ int fs_rename(const char *src_path, const char *dst_path)
 
     // do renaming
     int parent_dir_inum = translate(pathc_source-1, argv_source);
-    struct fs_dirent *dir = malloc(4096);
+    struct fs_dirent *dir = malloc(FS_BLOCK_SIZE);
     block_read(dir, *((inodes+parent_dir_inum)->ptrs), 1);
     int i = 0;
-    for(; i < 128; i++) {
+    for(; i < DIRENTS_IN_BLOCK; i++) {
         if(strcmp((dir+i)->name, *(argv_source+pathc_source-1)) == 0) {
             strcpy((dir+i)->name, *(argv_dest+pathc_dest-1));
             block_write(dir, *((inodes+parent_dir_inum)->ptrs), 1);
@@ -837,7 +844,7 @@ int fs_truncate(const char *path, off_t len)
     }
 
     // free blocks
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < INODE_BLOCK_PTRS; i++) {
         if (inode->ptrs[i] == 0) {
             continue;
         }
@@ -882,13 +889,13 @@ int fs_read(const char *path, char *buf, size_t len, off_t offset,
         return 0;
     }
 
-    size_t b_alloc_size = FS_BLOCK_SIZE*DIV_ROUND_UP(inode->size, 4096);
+    size_t b_alloc_size = FS_BLOCK_SIZE*DIV_ROUND_UP(inode->size, FS_BLOCK_SIZE);
     char *temp_buf = malloc(b_alloc_size);
-    for(int i=0; i < 1019; i++) {
-        if (inode->ptrs[i] == 0 || i*4096 > file_len) {
+    for(int i=0; i < INODE_BLOCK_PTRS; i++) {
+        if (inode->ptrs[i] == 0 || i*FS_BLOCK_SIZE > file_len) {
             break;
         }
-        block_read(temp_buf+(i*4096), inode->ptrs[i], 1);
+        block_read(temp_buf+(i*FS_BLOCK_SIZE), inode->ptrs[i], 1);
     }
 
     
@@ -944,7 +951,7 @@ int fs_write(const char *path, const char *buf, size_t len,
     int blockptr;
     int sizeComp = 0;
     int offset_cp = offset;
-    for(int i = 0; i < 1019; i++) {
+    for(int i = 0; i < INODE_BLOCK_PTRS; i++) {
         if (inode->ptrs[i] == 0 && i >= numBlocks) {
             break;
         } else if (inode->ptrs[i] == 0 && i < numBlocks) {
@@ -955,7 +962,7 @@ int fs_write(const char *path, const char *buf, size_t len,
             blockptr = inode->ptrs[i];
         } else if (inode->ptrs[i] != 0 && i >= numBlocks) {
             bit_clear(block_bitmap, inode->ptrs[i]);
-            inodes->ptrs[i] = 0;
+            inode->ptrs[i] = 0;
             continue;
         }
         int rStart = i*4096, rEnd = (i+1)*4096;
