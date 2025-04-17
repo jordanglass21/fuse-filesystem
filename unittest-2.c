@@ -849,6 +849,7 @@ char *write_buf, *ptr;
 int L1BK = 3500, BK = 4096, L2BK = 7000, TWOBK = 8192, L3BK = 10000, THREEBK = 12288;
 int S1 = 17, S2 = 100, S3 = 1000, S4 = 1024, S5 = 1970, S6 = 3000;
 
+/* Function the generates buf starting at start of a certain len*/
 int write_func(int len, int start) {
     write_buf = malloc(len+10);
     ptr = write_buf;
@@ -860,11 +861,15 @@ int write_func(int len, int start) {
     return i;
 }
 
+/* Function testing write append */
 void append_test_body(char* filename, int step, int nRead) {
+    // create file
     ck_assert_int_eq(0, fs_ops.create(filename, F_RW, NULL));
+    // local vars
     int bWrite = 0;
     ptr = write_buf;
     int buf_len = strlen(write_buf);
+    // loop through with `step` writing to file.
     for(int i = 0; i < buf_len; i += step) {
         if(buf_len - i < step) {
             ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
@@ -876,14 +881,18 @@ void append_test_body(char* filename, int step, int nRead) {
             ptr += step;
         }
     }
+    // check same bytes written to file.
     ck_assert_int_eq(bWrite, buf_len);
+    // check some stats, as in size of file and len of buffer
     struct stat *st = malloc(sizeof(struct stat));
     ck_assert_int_eq(0, fs_ops.getattr(filename, st));
     ck_assert_int_eq(buf_len, st->st_size);
     free(st);
+    // check contents of file by reading the file and compare with buffer used to write
     char *read_buf = malloc(buf_len);
     ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
     ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
+    
     free(read_buf);
     free(write_buf);
     ck_assert_int_eq(0, fs_ops.unlink(filename));
@@ -1145,9 +1154,12 @@ START_TEST (write_3000_3bk) {
 /* Write - Overwrite */
 
 void overwrite_write_op(char *filename, int step) {
+    // local vars
     int bWrite = 0;
     ptr = write_buf;
     int buf_len = strlen(write_buf);
+    
+    // writing with looping incrementing by `step`
     for(int i = 0; i < buf_len; i += step) {
         if(buf_len - i < step) {
             ck_assert_int_eq(buf_len - i, fs_ops.write(filename, ptr, buf_len - i, i, NULL));
@@ -1159,11 +1171,14 @@ void overwrite_write_op(char *filename, int step) {
             ptr += step;
         }
     }
+    // checks byte written is buf length.
     ck_assert_int_eq(bWrite, buf_len);
+    // confirm file size with get_attr.
     struct stat *st = malloc(sizeof(struct stat));
     ck_assert_int_eq(0, fs_ops.getattr(filename, st));
     ck_assert_int_eq(buf_len, st->st_size);
     free(st);
+    // read file into new buf and compare contents with write buf.
     char *read_buf = malloc(buf_len);
     ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
     ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
@@ -1171,6 +1186,7 @@ void overwrite_write_op(char *filename, int step) {
 }
 
 void overwrite_test_body(char *filename, int step, int nRead, int bytes) {
+    // tests that generates and writes a file
     struct statvfs *sfs = malloc(sizeof(struct statvfs));
     ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
     int original_blocks = sfs->f_bfree;
@@ -1181,7 +1197,7 @@ void overwrite_test_body(char *filename, int step, int nRead, int bytes) {
     ck_assert_int_eq(original_blocks - 1 - data_blocks, sfs->f_bfree);
     char *original_ptr = write_buf;
 
-    // generate nad overwrite original below
+    // generate nad overwrite original file below
     nRead = write_func(bytes, 10);
     ck_assert_int_eq(bytes, strlen(write_buf));
     ck_assert_int_eq(strlen(original_ptr), strlen(write_buf));
@@ -1189,8 +1205,12 @@ void overwrite_test_body(char *filename, int step, int nRead, int bytes) {
     
     free(original_ptr);
     free(write_buf);
+
+    // making sure the no new blocks were allocated in overwriting.
     ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
     ck_assert_int_eq(original_blocks - 1 - data_blocks, sfs->f_bfree);
+    
+    // making sure unlink frees blocks.
     ck_assert_int_eq(0, fs_ops.unlink(filename));
     ck_assert_int_eq(0, fs_ops.statfs(NULL, sfs));
     ck_assert_int_eq(original_blocks, sfs->f_bfree);
