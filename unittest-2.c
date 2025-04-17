@@ -1367,6 +1367,38 @@ START_TEST(truncate_THREEBK) {
 
 /* Truncate Errors */
 
+// is this the same thing as ENOENT???
+START_TEST(truncate_path_res) {
+
+    char* path = "/truncate";
+    ck_assert_int_eq(fs_ops.truncate(path, 0), -ENOENT);
+    
+} END_TEST
+
+START_TEST(truncate_ENOENT) {
+
+    char* path = "/truncate";
+    ck_assert_int_eq(fs_ops.truncate(path, 0), -ENOENT);
+    
+} END_TEST
+
+START_TEST(truncate_EISDIR) {
+
+    char* path = "/dir1";
+    ck_assert_int_eq(fs_ops.mkdir(path, D_RWX), 0);
+    ck_assert_int_eq(fs_ops.truncate(path, 0), -EISDIR);
+
+    fs_ops.rmdir("/dir1");
+    
+} END_TEST
+
+START_TEST(truncate_EINVAL) {
+
+    char* path = "/truncate";
+    ck_assert_int_eq(fs_ops.truncate(path, 10), -EINVAL);
+    
+} END_TEST
+
 /* Truncate Nested */
 
 /* Other miscellanous things */
@@ -1492,12 +1524,19 @@ void write_overwrite_tests(TCase *tc) {
 
 void truncate_tests(TCase *tc) {
         
+    // different sized blocks
     tcase_add_test(tc, truncate_L1BK);
     tcase_add_test(tc, truncate_BK);
     tcase_add_test(tc, truncate_L2BK);
     tcase_add_test(tc, truncate_TWOBK);
     tcase_add_test(tc, truncate_L3BK);
-    tcase_add_test(tc, truncate_THREEBK);    
+    tcase_add_test(tc, truncate_THREEBK);   
+    
+    // errors
+    tcase_add_test(tc, truncate_path_res);
+    tcase_add_test(tc, truncate_EINVAL);
+    tcase_add_test(tc, truncate_EISDIR);
+    tcase_add_test(tc, truncate_ENOENT);
 
 }
 
