@@ -140,7 +140,7 @@ END_TEST
 START_TEST(create_multi_file_nest)
 {
     fs_ops.mkdir("/dir1", D_RWX);
-    fs_ops.mkdir("/dir1/dir2", D_RWX);
+    ck_assert_int_eq(fs_ops.mkdir("/dir1/dir2", D_RWX), 0);
     // make many new file in root dir
     fs_ops.create("/dir1/dir2/newFile1", F_RWX, FFI);
     fs_ops.create("/dir1/dir2/newFile2", F_RWX, FFI);
@@ -1388,7 +1388,7 @@ START_TEST(truncate_EISDIR) {
     ck_assert_int_eq(fs_ops.mkdir(path, D_RWX), 0);
     ck_assert_int_eq(fs_ops.truncate(path, 0), -EISDIR);
 
-    fs_ops.rmdir("/dir1");
+    fs_ops.rmdir(path);
     
 } END_TEST
 
@@ -1400,6 +1400,17 @@ START_TEST(truncate_EINVAL) {
 } END_TEST
 
 /* Truncate Nested */
+
+START_TEST(truncate_nested) {
+
+    char* path = "/dir2/dir3/truncate";
+    ck_assert_int_eq(fs_ops.mkdir("/dir2", D_RW), 0);
+    ck_assert_int_eq(fs_ops.mkdir("/dir2/dir3", D_RWX), 0); 
+
+    truncate_helper(path, THREEBK, 0); // this does not work
+
+    
+} END_TEST
 
 /* Other miscellanous things */
 
@@ -1538,6 +1549,8 @@ void truncate_tests(TCase *tc) {
     tcase_add_test(tc, truncate_EISDIR);
     tcase_add_test(tc, truncate_ENOENT);
 
+    // nested
+    tcase_add_test(tc, truncate_nested);
 }
 
 int main(int argc, char **argv)
