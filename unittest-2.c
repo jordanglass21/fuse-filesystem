@@ -884,7 +884,6 @@ void append_test_body(char* filename, int step, int nRead) {
     char *read_buf = malloc(buf_len);
     ck_assert_int_eq(buf_len, fs_ops.read(filename, read_buf, buf_len, 0, NULL));
     ck_assert_int_eq(0, memcmp(read_buf, write_buf, buf_len));
-    printf("%d\n", nRead);
     free(read_buf);
     free(write_buf);
     ck_assert_int_eq(0, fs_ops.unlink(filename));
@@ -1181,14 +1180,12 @@ void overwrite_test_body(char *filename, int step, int nRead, int bytes) {
     int data_blocks = ceil(bytes/4096.0);
     ck_assert_int_eq(original_blocks - 1 - data_blocks, sfs->f_bfree);
     char *original_ptr = write_buf;
-    printf("original: %d\n", nRead);
 
     // generate nad overwrite original below
     nRead = write_func(bytes, 10);
     ck_assert_int_eq(bytes, strlen(write_buf));
     ck_assert_int_eq(strlen(original_ptr), strlen(write_buf));
     overwrite_write_op(filename, step);
-    printf("updated: %d\n", nRead);
     
     free(original_ptr);
     free(write_buf);
@@ -1427,6 +1424,7 @@ START_TEST (write_check_blocks_nest_L3BK) {
 unsigned int FREE_BLOCKS = 396;
 
 static void truncate_helper(const char *path, size_t size, unsigned int blocks_used) {
+    
     struct statvfs sfs;
 
     //ensure the blocks are all free 

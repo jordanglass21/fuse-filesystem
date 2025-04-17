@@ -28,7 +28,7 @@
 #define read(a,b,c) error do not use read()
 #define write(a,b,c) error do not use write()
 
-#define INODE_SIZE 128 // is this right?
+#define INODE_SIZE 128
 
 /* disk access. All access is in terms of 4KB blocks; read and
  * write functions return 0 (success) or -EIO.
@@ -79,17 +79,10 @@ void process_init_read_in(struct fs_dirent * dir) {
     for(int i = 0; i < DIRENTS_IN_BLOCK; i++){
         entry = dir + i;
         if(entry->valid){
-            printf("i: %d\n", i);
-            printf("valid: %d\n", entry->valid);
-            printf("inode #: %d\n", entry->inode);
-            printf("name: %s\n", entry->name);
             
             struct fs_inode *n_inode = inodes+(entry->inode);
 
             block_read(n_inode, entry->inode, 1);
-            // int inodes_per_block = FS_BLOCK_SIZE / INODE_SIZE;
-            // int data_region = 2 + (entry->inode / inodes_per_block);
-            // block_read(n_inode, data_region, 1); // i think this is how we calculate the datablocks we read in?
 
             if(S_ISDIR(n_inode->mode)) {
                 struct fs_dirent *n_dir = malloc(FS_BLOCK_SIZE);
@@ -133,7 +126,6 @@ int translate(int pathc, char **pathv) {
     int inode_found = 0;
     struct fs_dirent *dir = malloc(FS_BLOCK_SIZE);
     for(int i = 0; i < pathc; i++) {
-        printf("translate looking for: %s\n", pathv[i]);
         inode_found = 0;
         if(!S_ISDIR((inodes+inum)->mode)) {
             free(dir);
@@ -144,8 +136,7 @@ int translate(int pathc, char **pathv) {
 
         for(int j = 0; j < DIRENTS_IN_BLOCK; j++) {
             if(dir[j].valid && strcmp((dir+j)->name, pathv[i]) == 0) {
-                //return (dir + j)->inode; this is how it was before
-                inum = dir[j].inode; // i think we need to keep looking to find a nested dir
+                inum = dir[j].inode;
                 inode_found = 1;
                 break;
             }
@@ -245,7 +236,7 @@ void* fs_init(struct fuse_conn_info *conn)
     // READ SUPERBLOCK
     block_read(super_block, 0, 1);
 
-    // validate the magic number (5600)
+    // validate the magic number
     if (super_block->magic != 0x30303635) {
         printf("Superblock magic number invalid");
         free(super_block);
@@ -262,10 +253,6 @@ void* fs_init(struct fuse_conn_info *conn)
 
     // READ ROOT DIR INODE
     block_read(inodes+2, 2, 1);
-
-    for (int i = 0; i < 2; i++) {
-        printf("%02X ", block_bitmap[i]);
-    }
     
     struct fs_dirent *dirents = malloc(DIRENTS_IN_BLOCK * sizeof(struct fs_dirent));
     block_read(dirents, *((inodes+2)->ptrs), 1);
@@ -314,11 +301,9 @@ void* fs_init(struct fuse_conn_info *conn)
  */
 int fs_getattr(const char *path, struct stat *sb)
 {
-    /* your code here */
     char *pathd = strdup(path);
     int inum = get_inum(pathd);
     if(inum < 0) return inum;
-    printf("inum: %d\n", inum);
     fill_stat(inodes+inum, sb, inum);
     return 0;
 }
@@ -338,7 +323,6 @@ int fs_getattr(const char *path, struct stat *sb)
 int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
 		       off_t offset, struct fuse_file_info *fi)
 {
-    /* your code here */
     char *pathd = strdup(path);
     char **argv = (char **)malloc(MAX_PATH_LEN * (MAX_NAME_LEN * sizeof(char)));
     
@@ -350,7 +334,6 @@ int fs_readdir(const char *path, void *ptr, fuse_fill_dir_t filler,
     free(argv);
     if(inum < 0) return inum;
     
-    printf("inum: %d\n", inum);
 
     if(!S_ISDIR((inodes+inum)->mode)) return -ENOTDIR;
 
@@ -523,7 +506,6 @@ int fs_unlink(const char *path)
         parent = translate(pathc - 1, argv); // get the parent dir
     }
 
-    printf("parent: %d\n", parent);
     if (parent < 0) {
         for (int i = 0; i < MAX_PATH_LEN; i++) {
             free(argv[i]);
@@ -537,9 +519,6 @@ int fs_unlink(const char *path)
     // read in parent dir 
     struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * DIRENTS_IN_BLOCK);
     block_read(dirent, (inodes+parent)->ptrs[0], 1);
-
-    printf("dir: %s\n", dirent->name);
-    printf("parent: %d\n", parent);
 
     // do the delete
     for (int i = 0; i < DIRENTS_IN_BLOCK; i++) {
@@ -626,7 +605,6 @@ int fs_rmdir(const char *path)
             parent = translate(pathc - 1, argv); // get the parent dir
         }
     
-        printf("parent: %d\n", parent);
         if (parent < 0) {
             for (int i = 0; i < MAX_PATH_LEN; i++) {
                 free(argv[i]);
@@ -640,9 +618,6 @@ int fs_rmdir(const char *path)
         // read in parent dir 
         struct fs_dirent *dirent = malloc(sizeof(struct fs_dirent) * DIRENTS_IN_BLOCK);
         block_read(dirent, (inodes+parent)->ptrs[0], 1);
-    
-        printf("dir: %s\n", dirent->name);
-        printf("parent: %d\n", parent);
     
         // do the delete
         for (int i = 0; i < DIRENTS_IN_BLOCK; i++) {
@@ -764,7 +739,6 @@ int fs_rename(const char *src_path, const char *dst_path)
 int fs_chmod(const char *path, mode_t mode)
 {
     // if path does not exist
-    printf("chmod mode: %d\n", mode);
     char *paths= strdup(path);
     int inum_source = get_inum(paths);
     if(inum_source < 0) {
@@ -907,11 +881,6 @@ int fs_read(const char *path, char *buf, size_t len, off_t offset,
 int fs_write(const char *path, const char *buf, size_t len,
 	     off_t offset, struct fuse_file_info *fi)
 {
-    /* your code here */
-    printf("Write length: %ld\n", len);
-    if(offset == 4080){
-        printf("breakpoint\n");
-    }
     int inum = get_inum(strdup(path));
     if(inum < 0) return inum;
 
