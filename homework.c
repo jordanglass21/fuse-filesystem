@@ -129,7 +129,6 @@ int parse2(char *path, char **argv) {
 }
 
 int translate(int pathc, char **pathv) {
-    printf("pathc: %d\n", pathc);
     int inum = 2;
     int inode_found = 0;
     struct fs_dirent *dir = malloc(FS_BLOCK_SIZE);
@@ -264,26 +263,9 @@ void* fs_init(struct fuse_conn_info *conn)
     // READ ROOT DIR INODE
     block_read(inodes+2, 2, 1);
 
-    // prints to validate
-    printf("Superblock:\n");
-    printf("Magic number: 0x%X\n", super_block->magic);
-    printf("Disk Size: %u\n", super_block->disk_size);
-
-    printf("Block bitmap: ");
-    for (int i = 0; i < 2; i++) { // Print first 16 bits (2 bytes)
+    for (int i = 0; i < 2; i++) {
         printf("%02X ", block_bitmap[i]);
     }
-    printf("\n");
-
-    printf("Root inode details:\n");
-    printf("UID: %d\n", (inodes+2)->uid);
-    printf("GID: %d\n", (inodes+2)->gid);
-    printf("Mode: %o\n", (inodes+2)->mode & __S_IFMT);
-    printf("Creation time: %u\n", (inodes+2)->ctime);
-    printf("Modification time: %u\n", (inodes+2)->mtime);
-    printf("Size: %d\n", (inodes+2)->size);
-    printf("Size of array: %ld\n", sizeof((inodes+2)->ptrs));
-    printf("ptr: %d\n", *((inodes+2)->ptrs));
     
     struct fs_dirent *dirents = malloc(DIRENTS_IN_BLOCK * sizeof(struct fs_dirent));
     block_read(dirents, *((inodes+2)->ptrs), 1);

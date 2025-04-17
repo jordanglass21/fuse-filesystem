@@ -1487,12 +1487,9 @@ START_TEST(truncate_TWOBK) {
 
 START_TEST(truncate_L3BK) {
 
-    //ck_assert_int_eq(fs_ops.mkdir("/dir1", D_RWX), 0);
-
     char* path = "/truncate";
     truncate_helper(path, L3BK, 0);
 
-    //fs_ops.rmdir("/dir1");
     
 } END_TEST
 
@@ -1504,14 +1501,6 @@ START_TEST(truncate_THREEBK) {
 } END_TEST
 
 /* Truncate Errors */
-
-// is this the same thing as ENOENT???
-START_TEST(truncate_path_res) {
-
-    char* path = "/truncate";
-    ck_assert_int_eq(fs_ops.truncate(path, 0), -ENOENT);
-    
-} END_TEST
 
 START_TEST(truncate_ENOENT) {
 
@@ -1541,11 +1530,14 @@ START_TEST(truncate_EINVAL) {
 
 START_TEST(truncate_nested) {
 
-    char* path = "/dir2/truncate";
+    char* path = "/dir2/dir3/truncate";
     ck_assert_int_eq(fs_ops.mkdir("/dir2", D_RWX), 0);
-    //ck_assert_int_eq(fs_ops.mkdir("/dir2/dir3", D_RWX), 0); // why is this failing?
+    ck_assert_int_eq(fs_ops.mkdir("/dir2/dir3", D_RWX), 0);
     
-    truncate_helper(path, THREEBK, 4); // cant create a new file??
+    truncate_helper(path, THREEBK, 4);
+
+    ck_assert_int_eq(fs_ops.rmdir("/dir2/dir3"), 0);
+    ck_assert_int_eq(fs_ops.rmdir("/dir2"), 0);
 
 } END_TEST
 
@@ -1696,7 +1688,6 @@ void truncate_tests(TCase *tc) {
     tcase_add_test(tc, truncate_THREEBK);   
     
     // errors
-    tcase_add_test(tc, truncate_path_res);
     tcase_add_test(tc, truncate_EINVAL);
     tcase_add_test(tc, truncate_EISDIR);
     tcase_add_test(tc, truncate_ENOENT);
