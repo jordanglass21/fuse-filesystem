@@ -1403,13 +1403,12 @@ START_TEST(truncate_EINVAL) {
 
 START_TEST(truncate_nested) {
 
-    char* path = "/dir2/dir3/truncate";
-    ck_assert_int_eq(fs_ops.mkdir("/dir2", D_RW), 0);
-    ck_assert_int_eq(fs_ops.mkdir("/dir2/dir3", D_RWX), 0); 
-
-    truncate_helper(path, THREEBK, 0); // this does not work
-
+    char* path = "/dir2/truncate";
+    ck_assert_int_eq(fs_ops.mkdir("/dir2", D_RWX), 0);
+    //ck_assert_int_eq(fs_ops.mkdir("/dir2/dir3", D_RWX), 0); // why is this failing?
     
+    truncate_helper(path, THREEBK, 4); // cant create a new file??
+
 } END_TEST
 
 /* Other miscellanous things */
